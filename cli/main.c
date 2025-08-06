@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include <mpix/image.h>
 #include <mpix/utils.h>
@@ -449,6 +450,26 @@ static int cmd_correction(int argc, char **argv)
 			return -EINVAL;
 		}
 		corr.gamma.level = CLAMP(ull, 17, 255);
+
+		break;
+	case MPIX_CORRECTION_COLOR_MATRIX:
+		if (argc != 11) {
+			return -EINVAL;
+		}
+
+		float ccm_val;
+
+		for(int i = 2; i < 11; i++){
+			arg = argv[i];
+
+			ccm_val = strtof(arg, &arg);
+
+			if(*arg != '\0' || ccm_val > UINT16_MAX) {
+				MPIX_ERR("Invalid CCM Coefficient '%s'", argv[i]);
+				return -EINVAL;
+			}
+			corr.color_matrix.levels[i - 2] = ccm_val;
+		}
 
 		break;
 	default:
