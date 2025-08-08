@@ -156,6 +156,19 @@ void mpix_correction_gamma_rgb24(const uint8_t *src, uint8_t *dst, uint16_t widt
 }
 MPIX_REGISTER_CORRECTION_OP(gc_rgb24, mpix_correction_gamma_rgb24, GAMMA, RGB24);
 
+void mpix_correction_color_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
+		                            uint16_t line_offset, union mpix_correction_any *corr)
+{
+	uint16_t *ccm = corr->color_matrix.levels;
+
+	for(size_t w = 0; w + 3 <= width; w++, dst += 3, src += 3) {
+		dst[0] = CLAMP(src[0] * ccm[0] + src[1] * ccm[1] + src[2] * ccm[2], 0x00, 0xff);
+		dst[1] = CLAMP(src[0] * ccm[3] + src[1] * ccm[4] + src[2] * ccm[5], 0x00, 0xff);
+		dst[2] = CLAMP(src[0] * ccm[6] + src[1] * ccm[7] + src[2] * ccm[8], 0x00, 0xff);
+	}
+}
+MPIX_REGISTER_CORRECTION_OP(cc_rgb24, mpix_correction_color_rgb24, COLOR_MATRIX, RGB24);
+
 static const struct mpix_correction_op **mpix_correction_op_list =
 	(const struct mpix_correction_op *[]){MPIX_LIST_CORRECTION_OP};
 

@@ -77,6 +77,8 @@ enum mpix_correction_type {
 	MPIX_CORRECTION_WHITE_BALANCE,
 	/** Apply gamma correction to non-linearly increase the brightness of the image */
 	MPIX_CORRECTION_GAMMA,
+	/** Apply color correction to every pixel*/
+	MPIX_CORRECTION_COLOR_MATRIX,
 };
 
 /**
@@ -138,6 +140,12 @@ void mpix_correction_black_level_rgb24(const uint8_t *src, uint8_t *dst, uint16_
 void mpix_correction_white_balance_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
 					 uint16_t line_offset, union mpix_correction_any *corr);
 
+/**
+ * @brief Perform color correction of an input line in RGB24 pixel format.
+ * @copydetails mpix_correction_black_level_raw8
+ */
+void mpix_correction_color_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
+					    uint16_t line_offset, union mpix_correction_any *corr);
 /**
  * Helper to simplify the implementation of a image correction operation.
  *
