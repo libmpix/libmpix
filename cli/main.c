@@ -119,6 +119,34 @@ static int cmd_read(int argc, char **argv)
 		return -errno;
 	}
 
+	if (fourcc != MPIX_FMT_QOI) { /* skip check for compressed formats */
+	    size_t bpp = 0;
+
+	    switch (fourcc) {
+	    case MPIX_FMT_SBGGR8:
+	    case MPIX_FMT_SRGGB8:
+	    case MPIX_FMT_SGBRG8:
+	    case MPIX_FMT_SGRBG8:
+		bpp = 1; /* 8-bit Bayer, 1 byte per pixel */
+		break;
+	    case MPIX_FMT_RGB24:
+		bpp = 3; /* RGB888, 3 bytes per pixel */
+		break;
+	    /* add more formats as needed */
+	    default:
+		break;
+	    }
+
+	    if (bpp > 0) {
+		size_t expected_size = (size_t)width * (size_t)height * bpp;
+		if (filesize != expected_size) {
+		    MPIX_ERR("File size (%ld) does not match expected raw image size (%ld) for %dx%d",
+			     (long)filesize, (long)expected_size, width, height);
+		    return -EINVAL;
+		}
+	    }
+	}
+
 	ret = fseek(fp, 0, SEEK_SET);
 	if (ret < 0) {
 		MPIX_ERR("Failed to resume to start of '%s'", argv[1]);
