@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <cerrno>
+#include <mpix/formats.h>
 #include <mpix/image.h>
 #include <mpix/utils.h>
 #include <mpix/str.h>
@@ -61,6 +63,22 @@ static int parse_width_height(char *arg, uint16_t *width, uint16_t *height)
 	return 0;
 }
 
+static int parse_width(char *arg, uint16_t *width)
+{
+	unsigned long long ull;
+
+	ull = strtoull(arg, &arg, 10);
+	if (ull == 0 || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid width in <width> parameter '%s'", arg);
+		return -EINVAL;
+	}
+
+	*width = ull;
+
+
+	return 0;
+}
+
 static int cmd_read(int argc, char **argv)
 {
 	uint32_t fourcc = 0;
@@ -71,33 +89,8 @@ static int cmd_read(int argc, char **argv)
 	size_t sz;
 	int ret;
 
-	if (argc == 2) {
-		char *ext;
-
-		ext = strrchr(argv[1], '.');
-		if (ext == NULL || strlen(ext) == 0) {
-			MPIX_ERR("Could not parse extension: '%s'", argv[1]);
-			return -EINVAL;
-		}
-
-		if (strcasecmp(ext, ".qoi") == 0) {
-			fourcc = MPIX_FMT_QOI;
-		} else {
-			MPIX_ERR("Unsupported file extension: '%s'", ext);
-			return -EINVAL;
-		}
-
-	} else if (argc == 4) {
-		ret = parse_width_height(argv[2], &width, &height);
-		if (ret != 0) {
-			return ret;
-		}
-
-		ret = str_get_value(mpix_str_fmt, argv[3], &fourcc);
-		if (ret != 0) {
-			return ret;
-		}
-	} else {
+	if(argc < 2) {
+		MPIX_ERR("Usage: %s <filename>", argv[0]);
 		return -EINVAL;
 	}
 
@@ -117,6 +110,45 @@ static int cmd_read(int argc, char **argv)
 	if (filesize < 0) {
 		MPIX_ERR("Failed to estimate '%s' file size", argv[1]);
 		return -errno;
+	}
+
+	if (argc == 2) {
+		char *ext;
+
+		ext = strrchr(argv[1], '.');
+		if (ext == NULL || strlen(ext) == 0) {
+			MPIX_ERR("Could not parse extension: '%s'", argv[1]);
+			return -EINVAL;
+		}
+
+		if (strcasecmp(ext, ".qoi") == 0) {
+			fourcc = MPIX_FMT_QOI;
+		} else {
+			MPIX_ERR("Unsupported file extension: '%s'", ext);
+			return -EINVAL;
+		}
+
+	} else if (argc == 4) {
+		ret = parse_width(argv[2], &width);
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = str_get_value(mpix_str_fmt, argv[3], &fourcc);
+		if (ret != 0) {
+			return ret;
+		}
+
+		/*User has provided width and we know the format compute height*/
+		height = filesize / width ;
+
+		if(height < 1 || height > UINT16_MAX){
+			MPIX_ERR("Invalid width:%d provided, filesize:%llu does not match", width, filesize);
+			return -EINVAL;
+		}
+
+	} else {
+		return -EINVAL;
 	}
 
 	ret = fseek(fp, 0, SEEK_SET);
@@ -465,7 +497,7 @@ struct {
 	const char *usage;
 } cmds[] = {
 	/* File I/O operations */
-	{"read",	&cmd_read,	"read <file> [<width>x<height> <format>] ! ..."},
+	{"read",	&cmd_read,	"read <file> [<width> <format>] ! ..."},
 	{"write",	&cmd_write,	"... ! write <file>"},
 
 	/* Conversion operations */
