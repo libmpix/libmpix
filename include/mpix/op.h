@@ -155,7 +155,7 @@ static inline uint8_t *mpix_op_peek_input_bytes(struct mpix_base_op *op, size_t 
 /**
  * @brief Request a pointer to the next line of data .
  *
- * This permits to implement a lookahead operation when one or several lines of context is needed
+ * This implements a lookahead operation when one or several lines of context is needed
  * in addition to the line converted.
  *
  * @return The pointer to the input data.
@@ -166,11 +166,28 @@ static inline uint8_t *mpix_op_get_output_line(struct mpix_base_op *op)
 }
 
 /**
- * @brief Request a pointer to the next line of data taking it out of the input stream.
+ * @brief Request a pointer to the next @p num lines of data taking it out of the input stream.
  *
- * This permits to step one line forward through the stream as one line of data is requested.
+ * This steps @p num lines forward through the stream as one line of data is requested.
  * in addition to the line converted.
  *
+ * @param op Current operation in progress.
+ * @param num Number of lines to fetch in one block.
+ * @return The pointer to the input data.
+ */
+static inline const uint8_t *mpix_op_get_input_lines(struct mpix_base_op *op, uint16_t num)
+{
+	op->line_offset += num;
+	return mpix_op_get_input_bytes(op, mpix_op_pitch(op) * num);
+}
+
+/**
+ * @brief Request a pointer to the next line of data taking it out of the input stream.
+ *
+ * This steps one line forward through the stream as one line of data is requested.
+ * in addition to the line converted.
+ *
+ * @param op Current operation in progress.
  * @return The pointer to the input data.
  */
 static inline const uint8_t *mpix_op_get_input_line(struct mpix_base_op *op)
@@ -182,9 +199,10 @@ static inline const uint8_t *mpix_op_get_input_line(struct mpix_base_op *op)
 /**
  * @brief Request a pointer to the next line of data without affecting the input stream.
  *
- * This permits to implement a lookahead operation when one or several lines of context is needed
+ * This implements a lookahead operation when one or several lines of context is needed
  * in addition to the line converted.
  *
+ * @param op Current operation in progress.
  * @return The pointer to the input data.
  */
 static inline uint8_t *mpix_op_peek_input_line(struct mpix_base_op *op)
@@ -206,7 +224,7 @@ static inline const uint8_t *mpix_op_get_all_input(struct mpix_base_op *op, size
 }
 
 /**
- * @brief Request a pointer the next bytes of output buffer.
+ * @brief Request a pointer to all the bytes of the output buffer.
  *
  * This will not shift the "write" position.
  * The buffer obtained can receive the output data, and the number of bytes written need to be

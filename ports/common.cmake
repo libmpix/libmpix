@@ -5,6 +5,7 @@
 set_property(GLOBAL PROPERTY LIBMPIX_DIR ${LIBMPIX_DIR})
 
 set(LIBMPIX_SRC
+  ${LIBMPIX_DIR}/src/JPEGENC.c
   ${LIBMPIX_DIR}/src/auto.c
   ${LIBMPIX_DIR}/src/formats.c
   ${LIBMPIX_DIR}/src/image.c

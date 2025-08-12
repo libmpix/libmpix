@@ -225,6 +225,23 @@ static int cmd_qoi_encode(int argc, char **argv)
 	return mpix_image_qoi_encode(&img);
 }
 
+static int cmd_jpeg_encode(int argc, char **argv)
+{
+	enum mpix_jpeg_quality quality;
+	int ret;
+
+	if (argc != 2) {
+		return -EINVAL;
+	}
+
+	ret = str_get_value(mpix_str_jpeg_quality, argv[1], &quality);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpix_image_jpeg_encode(&img, quality);
+}
+
 static int cmd_kernel(int argc, char **argv)
 {
 	enum mpix_kernel_type type;
@@ -486,6 +503,7 @@ struct {
 
 	/* Compression operations */
 	{"qoi_encode",	&cmd_qoi_encode, "... ! qoi_encode ! ..."},
+	{"jpeg_encode",	&cmd_jpeg_encode, "... ! jpeg_encode <quality> ! ..."},
 };
 
 void usage(void)

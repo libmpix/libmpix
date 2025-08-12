@@ -139,7 +139,7 @@ void mpix_image_print_256color(struct mpix_image *img)
 static void mpix_hexdump_raw(const uint8_t *buf, size_t size)
 {
 	for (size_t i = 0; i < size;) {
-		printf("%08x:", i);
+		printf("%08zx:", i);
 		for (int n = 0; n < 32 && i < size; n++, i++) {
 			printf(" %02x", buf[i]);
 		}

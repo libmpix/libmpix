@@ -37,3 +37,4 @@ c2str 0 fmt
 c2str 1 kernel
 c2str 1 resize
 c2str 1 correction
+c2str 1 jpeg_quality

@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright (c) 2025 Brilliant Labs Ltd.
+ * Copyright (c) 2025 tinyVision.ai Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include <assert.h>
 #include <errno.h>
@@ -9,127 +13,91 @@
 #include <mpix/op_jpeg.h>
 #include <mpix/utils.h>
 
-#define MPIX_JPEG_OP_INDEX  0x00 /* 00xxxxxx */
-#define MPIX_JPEG_OP_DIFF   0x40 /* 01xxxxxx */
-#define MPIX_JPEG_OP_LUMA   0x80 /* 10xxxxxx */
-#define MPIX_JPEG_OP_RUN    0xc0 /* 11xxxxxx */
-#define MPIX_JPEG_OP_RGB    0xfe /* 11111110 */
-#define MPIX_JPEG_OP_RGBA   0xff /* 11111111 */
+#define JPEGENC_HIGHWATER_MARGIN 4096
 
-#define MPIX_JPEG_PUT_U8(u) ({                                                                     \
-	if (o + 1 >= dst_sz) {                                                                     \
-		return o;                                                                          \
-	}                                                                                          \
-	dst[o++] = (u);                                                                            \
-})
+// 444 = 8x8 420 = 16x16, conditions minimnum buffer size for JPEGAddMCU
+#define JPEGENC_SUBSAMPLE JPEGE_SUBSAMPLE_444
 
-#define MPIX_JPEG_PUT_U32(u) ({                                                                    \
-	if (o + 4 >= dst_sz) {                                                                     \
-		return o;                                                                          \
-	}                                                                                          \
-	dst[o++] = (u) >> 24;                                                                      \
-	dst[o++] = (u) >> 16;                                                                      \
-	dst[o++] = (u) >> 8;                                                                       \
-	dst[o++] = (u) >> 0;                                                                       \
-})
+// TODO: Ctrl for this
+#define JPEGENC_Q JPEGE_Q_MED
 
-static void mpix_jpeg_yuyv_to_y8x8(const uint8_t *src[8], uint16_t offset, uint8_t block[64])
+#include "JPEGENC.h"
+
+int init_jpeg(struct mpix_jpeg_op *op, uint8_t *buffer, size_t size)
 {
-	for (int h = 0; h < 8; h++) {
-		const uint8_t *row = src[h] + offset;
+	struct mpix_base_op *base = &op->base;
+	int ret;
 
-		for (int16_t w = 0; w < 8; w++, row += 2, block++) {
-			*block = *row;
-		}
+	switch (op->base.fourcc_src) {
+	case MPIX_FMT_RGB565:
+		op->image.ucPixelType = JPEGE_PIXEL_RGB565;
+		break;
+	case MPIX_FMT_RGB24:
+		op->image.ucPixelType = JPEGE_PIXEL_RGB24;
+		break;
+	case MPIX_FMT_YUYV:
+		op->image.ucPixelType = JPEGE_PIXEL_YUYV;
+		break;
+	default:
+		return -ENOTSUP;
 	}
-}
 
-/*
- * YUYV is YUV with 4:2:2 chroma horizontal sub-sampling. To convert it to YUV 4:2:0 chroma
- * horizontal and vertical sub-sampling, it is necessary to average two rows of chroma.
- */
-static void mpix_jpeg_yuyv_to_uv8x8(const uint8_t *src[8], uint16_t offset, uint8_t block[64])
-{
-	for (int h = 0; h < 16; h += 2) {
-		const uint8_t *row0 = src[h + 0] + offset;
-		const uint8_t *row1 = src[h + 1] + offset;
+	op->image.pOutput = buffer;
+	op->image.iBufferSize = size;
+	op->image.pHighWater = buffer + size - JPEGENC_HIGHWATER_MARGIN;
 
-		for (int w = 0; w + 2 <= 16; w += 2, row0 += 4, row1 += 4, block++) {
-			*block = (row0[1] + row1[1]) / 2;
-		}
+	ret = JPEGEncodeBegin(&op->image, &op->encoder, base->width, base->height,
+			      op->image.ucPixelType, JPEGENC_SUBSAMPLE, JPEGENC_Q);
+	if (ret != JPEGE_SUCCESS) {
+		return -1;
 	}
-}
 
-static inline size_t mpix_jpeg_encode_block(struct mpix_jpeg_op *op, uint8_t block[64],
-					    uint8_t *dst, size_t dst_sz)
-{
-	/* TODO insert JPEG input block to JPEG output here */
 	return 0;
 }
 
-void mpix_jpeg_encode_yuyv_op(struct mpix_base_op *base)
+void mpix_jpeg_encode_op(struct mpix_base_op *base)
 {
 	struct mpix_jpeg_op *op = (void *)base;
-	uint8_t block[64];
-	const uint8_t *src[16];
+	size_t bytespp = mpix_bits_per_pixel(base->fourcc_src) / 8;
+	size_t pitch = mpix_op_pitch(base);
+	size_t size;
+	const uint8_t *src;
 	uint8_t *dst;
-	size_t dst_sz;
-	size_t o = 0;
+	int ret;
 
-	for (size_t i = 0; i < ARRAY_SIZE(src); i++) {
-		src[i] = mpix_op_get_input_line(base);
+	if (base->line_offset == 0) {
+		dst = mpix_op_peek_output(base, &size);
+		ret = init_jpeg(op, dst, size);
+		assert(ret == 0);
 	}
 
-	dst = mpix_op_peek_output(base, &dst_sz);
-
-	/* 0   8   16  24  32  40  48  56  64  72  80  88  92
-	 * '   '   '   '   '   '   '   '   '   '   '   '   '
-	 * #=======#=======#=======#=======#=======#=======#  \
-	 * #   |   #   |   #   |   #   |   #   |   #   |   #  | Scan tiles of 4 blocks of
-	 * #---+---#---+---#---+---#---+---#---+---#---+---#  | 8x8 pixels each over the
-	 * #   |   #   |   #   |   #   |   #   |   #   |   #  | full width of the line.
-	 * #=======#=======#=======#=======#=======#=======#  /
-	 * |   |   |   |   |   |   |   |   |   |   |   |   |
-	 * +---+---+---+---+---+---+---+---+---+---+---+---+
-	 * :   :   :   :   :   :   :   :   :   :   :   :   :
-	 */
-	for (uint16_t w = 0; w + 16 <= base->width; w += 16) {
-		/* top left grayscale */
-		mpix_jpeg_yuyv_to_y8x8(&src[0], w + 0, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* top right grayscale */
-		mpix_jpeg_yuyv_to_y8x8(&src[0], w + 8, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* bottom left grayscale */
-		mpix_jpeg_yuyv_to_y8x8(&src[8], w + 0, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* bottom right grayscale */
-		mpix_jpeg_yuyv_to_y8x8(&src[8], w + 8, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* blueness */
-		mpix_jpeg_yuyv_to_uv8x8(&src[8], w + 0, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* redness */
-		mpix_jpeg_yuyv_to_uv8x8(&src[8], w + 2, block);
-		o += mpix_jpeg_encode_block(op, block, dst + o, dst_sz - o);
-
-		/* Shift to the next 16x16 block (tile of four 8x8 blocks) towards the right */
-		for (size_t i = 0; i < ARRAY_SIZE(src); i++) {
-			src[i] += 16 * 2;
+	/* Process a line full of 8x8 blocks */
+	src = mpix_op_get_input_lines(base, 8);
+	for (int i = 0; i < base->width; i += op->encoder.cx) {
+		/* Discards const, JPEGENC doesnt actually write to it */
+		ret = JPEGAddMCU(&op->image, &op->encoder, (uint8_t*)&(src[i*bytespp]), pitch);
+		if (ret != JPEGE_SUCCESS) {
+			MPIX_ERR("Failed to add an image block at column %u", i);
+			return;
 		}
 	}
+
+	if (base->line_offset == base->height) {
+		MPIX_INF("JPEG frame conversion complete");
+		JPEGEncodeEnd(&op->image);
+
+		/* Set the number of bytes read from the output buffer */
+		mpix_op_get_output_bytes(base, op->image.iDataSize);
+	}
 }
-MPIX_REGISTER_JPEG_OP(encode_yuyv, mpix_jpeg_encode_yuyv_op, YUYV, JPEG);
+MPIX_REGISTER_JPEG_OP(enc_rgb565, mpix_jpeg_encode_op, RGB565, JPEG);
+MPIX_REGISTER_JPEG_OP(enc_rgb24, mpix_jpeg_encode_op, RGB24, JPEG);
+MPIX_REGISTER_JPEG_OP(enc_yuyv, mpix_jpeg_encode_op, YUYV, JPEG);
 
 static const struct mpix_jpeg_op **mpix_jpeg_op_list =
 	(const struct mpix_jpeg_op *[]){MPIX_LIST_JPEG_OP};
 
-int mpix_image_jpeg_encode(struct mpix_image *img)
+int mpix_image_jpeg_encode(struct mpix_image *img, enum mpix_jpeg_quality quality)
 {
 	struct mpix_jpeg_op *op = NULL;
 

@@ -94,6 +94,15 @@ uint8_t mpix_bits_per_pixel_cb(uint32_t fourcc);
  */
 #define MPIX_FMT_RGB24 MPIX_FOURCC('R', 'G', 'B', '3')
 
+/**
+ * The first byte is empty (X) for each pixel.
+ *
+ * @code{.unparsed}
+ * | Xxxxxxxx Rrrrrrrr Gggggggg Bbbbbbbb | ...
+ * @endcode
+ */
+#define MPIX_FMT_XRGB32 MPIX_FOURCC('B', 'X', '2', '4')
+
 /** @} */
 
 /**

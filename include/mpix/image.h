@@ -13,6 +13,7 @@
 #include <mpix/op_kernel.h>
 #include <mpix/op_palettize.h>
 #include <mpix/op_resize.h>
+#include <mpix/op_jpeg.h>
 #include <mpix/stats.h>
 
 /**
@@ -219,14 +220,13 @@ int mpix_image_debayer(struct mpix_image *img, uint32_t window_size);
 int mpix_image_qoi_encode(struct mpix_image *img);
 
 /**
- * @brief Encode an image to the JPEG compressed image format
+ * @brief Compressed an image to the JPEG format.
  *
- * @note This is a placeholder and implementation is still in progress
- *
- * @param img Image to convert to JPEG format.
+ * @param img Image to convert to JPEG.
+ * @param quality The quality level to use for encoding.
  * @return 0 on success or negative error code.
  */
-int mpix_image_jpeg_encode(struct mpix_image *img);
+int mpix_image_jpeg_encode(struct mpix_image *img, enum mpix_jpeg_quality quality);
 
 /**
  * @brief Resize an image.

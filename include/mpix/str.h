@@ -22,6 +22,7 @@ extern const struct mpix_str mpix_str_fmt[];
 extern const struct mpix_str mpix_str_kernel[];
 extern const struct mpix_str mpix_str_resize[];
 extern const struct mpix_str mpix_str_correction[];
+extern const struct mpix_str mpix_str_jpeg_quality[];
 
 static inline int mpix_str_get_value(const struct mpix_str *table, const char *name, uint32_t *val)
 {

@@ -11,6 +11,7 @@
 #include <stdint.h>
 
 #include <mpix/op.h>
+#include <JPEGENC.h>
 
 /**
  * JPEG conversion operation
@@ -19,6 +20,20 @@
 struct mpix_jpeg_op {
 	/** Fields common to all operations. */
 	struct mpix_base_op base;
+
+	/** Image context from the JPEGENC library */
+	JPEGE_IMAGE image;
+
+	/** Image encoder context from the JPEGENC library */
+	JPEGENCODE encoder;
+};
+
+/**
+ * JPEG quality levels use while encoding an image.
+ */
+enum mpix_jpeg_quality {
+	/** Default quality, placeholder until configurable quality is supported */
+	MPIX_JPEG_QUALITY_DEFAULT,
 };
 
 /**

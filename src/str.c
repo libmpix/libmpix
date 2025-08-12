@@ -9,6 +9,7 @@ const struct mpix_str mpix_str_fmt[] = {
 	{"RGB565",        MPIX_FMT_RGB565},
 	{"RGB565X",       MPIX_FMT_RGB565X},
 	{"RGB24",         MPIX_FMT_RGB24},
+	{"XRGB32",        MPIX_FMT_XRGB32},
 	{"YUV12",         MPIX_FMT_YUV12},
 	{"YUV24",         MPIX_FMT_YUV24},
 	{"YUYV",          MPIX_FMT_YUYV},
@@ -50,5 +51,10 @@ const struct mpix_str mpix_str_correction[] = {
 	{"BLACK_LEVEL",   MPIX_CORRECTION_BLACK_LEVEL},
 	{"WHITE_BALANCE", MPIX_CORRECTION_WHITE_BALANCE},
 	{"GAMMA",         MPIX_CORRECTION_GAMMA},
+	{},
+};
+
+const struct mpix_str mpix_str_jpeg_quality[] = {
+	{"DEFAULT",       MPIX_JPEG_QUALITY_DEFAULT},
 	{},
 };
