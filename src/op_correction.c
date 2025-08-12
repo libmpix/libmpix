@@ -55,9 +55,9 @@ void mpix_correction_white_balance_rgb24(const uint8_t *src, uint8_t *dst, uint1
 	uint32_t blue_level = corr->white_balance.blue_level;
 
 	for (size_t w = 0; w < width; w++, src += 3, dst += 3) {
-		dst[0] = CLAMP(src[0] * red_level / MPIX_CORRECTION_WB_SCALE, 0x00, 0xff);
+		dst[0] = MIN(src[0] * red_level / MPIX_CORRECTION_WB_SCALE, 0xff);
 		dst[1] = src[1];
-		dst[2] = CLAMP(src[2] * blue_level / MPIX_CORRECTION_WB_SCALE, 0x00, 0xff);
+		dst[2] = MIN(src[2] * blue_level / MPIX_CORRECTION_WB_SCALE, 0xff);
 	}
 }
 MPIX_REGISTER_CORRECTION_OP(wb_rgb24, mpix_correction_white_balance_rgb24, WHITE_BALANCE, RGB24);
@@ -69,7 +69,6 @@ static inline uint8_t mpix_gamma_raw8(uint8_t raw8, const uint8_t *gamma_y, cons
 	uint8_t x1 = 0;
 	uint8_t y0;
 	uint8_t y1;
-	int i;
 
 	if (raw8 == 0) {
 		return 0;
@@ -78,7 +77,7 @@ static inline uint8_t mpix_gamma_raw8(uint8_t raw8, const uint8_t *gamma_y, cons
 	/* Lookup the values through the scale of values. This is expected to be optimized
 	 * into  afixed set of values by the compiler as the gamma scale is very small.
 	 */
-	for (i = 0;; i++) {
+	for (size_t i = 0;; i++) {
 		if (i >= gamma_sz) {
 			y0 = gamma_y[i - 1];
 			x1 = y1 = 0xff;

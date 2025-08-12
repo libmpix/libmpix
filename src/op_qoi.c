@@ -149,7 +149,7 @@ void mpix_qoi_encode_rgb24_op(struct mpix_base_op *base)
 		o += mpix_qoi_add_header(op, dst + o, dst_sz - o);
 	}
 
-	for (size_t w = 0; w < base->width - 1; w++, src += 3) {
+	for (uint16_t w = 0; w < base->width - 1; w++, src += 3) {
 		o += mpix_qoi_encode_rgb24(op, src, dst + o, dst_sz - o, false);
 	}
 	o += mpix_qoi_encode_rgb24(op, src, dst + o, dst_sz - o, is_last);
