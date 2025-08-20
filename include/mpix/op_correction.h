@@ -32,7 +32,7 @@ struct mpix_correction_white_balance {
  */
 struct mpix_correction_color_matrix {
 	/** 3x3 array with values obtained by calibration */
-	uint16_t levels[9];
+	int16_t levels[9];
 };
 
 /**

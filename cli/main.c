@@ -430,6 +430,7 @@ static int cmd_correction(int argc, char **argv)
 {
 	union mpix_correction_any corr = {0};
 	unsigned long long ull;
+	long long ll;
 	uint32_t type;
 	char *arg;
 	int ret;
@@ -506,12 +507,12 @@ static int cmd_correction(int argc, char **argv)
 		for (int i = 2; i < 2 + 9; i++) {
 			arg = argv[i];
 
-			ull = strtof(arg, &arg) * (1 << MPIX_CORRECTION_SCALE_BITS);
-			if (*argv[i] == '\0' || *arg != '\0' || ull > UINT16_MAX) {
+			ll = strtof(arg, &arg) * (1 << MPIX_CORRECTION_SCALE_BITS);
+			if (*argv[i] == '\0' || *arg != '\0' || ll < INT16_MIN || ll > INT16_MAX) {
 				MPIX_ERR("Invalid CCM coefficient '%s'", argv[i]);
 				return -EINVAL;
 			}
-			corr.color_matrix.levels[i - 2] = ull;
+			corr.color_matrix.levels[i - 2] = ll;
 		}
 
 		break;
