@@ -139,7 +139,7 @@ static int cmd_read(int argc, char **argv)
 		}
 
 		/* User has provided the width and we know the format to compute the height */
-		height = filesize / width ;
+		height = (filesize * 8) / (width * mpix_bits_per_pixel(fourcc));
 		if (height < 1 || filesize / width > UINT16_MAX) {
 			MPIX_ERR("Invalid width:%d provided, filesize:%llu does not match",
 				 width, filesize);
