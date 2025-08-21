@@ -8,7 +8,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <arm_mve.h>
+#include "arm_mve.h"
+
+/* ARM Helium MVE optimized debayer functions */
 
 #include <mpix/config.h>
 #include <mpix/genlist.h>
@@ -99,14 +101,6 @@ static inline void mpix_grbg8_to_rgb24_2x2(uint8_t g0, uint8_t r0, uint8_t b0, u
     dst[1] = (uint8_t)(g_sum / 2);  // G averaged
     
     dst[2] = b0;  // B direct
-    
-    // Debug: print first few calculations
-    static int call_count = 0;
-    if (call_count < 3) {
-        printf("DEBUG grbg2x2[%d]: g0=%02x r0=%02x b0=%02x g1=%02x -> R=%02x G=%02x B=%02x\n", 
-               call_count, g0, r0, b0, g1, dst[0], dst[1], dst[2]);
-        call_count++;
-    }
 }
 
 // 3x3 helper functions using minimal ARM Helium MVE instructions
@@ -235,7 +229,7 @@ void mpix_convert_gbrg8_to_rgb24_2x2(const uint8_t *src0, const uint8_t *src1, u
         mpix_bggr8_to_rgb24_2x2(src0[1], src0[2], src1[1], src1[2], &dst[3]);
     }
     mpix_gbrg8_to_rgb24_2x2(src0[0], src0[1], src1[0], src1[1], &dst[0]);
-    mpix_bggr8_to_rgb24_2x2(src0[1], src0[-1], src1[1], src1[-1], &dst[3]);
+    mpix_bggr8_to_rgb24_2x2(src0[1], src1[1], src0[-1], src1[-1], &dst[3]);
 }
 
 void mpix_convert_bggr8_to_rgb24_2x2(const uint8_t *src0, const uint8_t *src1, uint8_t *dst,
@@ -245,10 +239,10 @@ void mpix_convert_bggr8_to_rgb24_2x2(const uint8_t *src0, const uint8_t *src1, u
 
     for (size_t w = 0; w + 3 <= width; w += 2, src0 += 2, src1 += 2, dst += 6) {
         mpix_bggr8_to_rgb24_2x2(src0[0], src0[1], src1[0], src1[1], &dst[0]);
-        mpix_grbg8_to_rgb24_2x2(src0[1], src0[2], src1[1], src1[2], &dst[3]);
+        mpix_grbg8_to_rgb24_2x2(src0[2], src1[2], src0[1], src1[1], &dst[3]);
     }
     mpix_bggr8_to_rgb24_2x2(src0[0], src0[1], src1[0], src1[1], &dst[0]);
-    mpix_grbg8_to_rgb24_2x2(src0[1], src0[-1], src1[1], src1[-1], &dst[3]);
+    mpix_grbg8_to_rgb24_2x2(src0[1], src1[1], src0[-1], src1[-1], &dst[3]);
 }
 
 void mpix_convert_grbg8_to_rgb24_2x2(const uint8_t *src0, const uint8_t *src1, uint8_t *dst,
@@ -271,13 +265,13 @@ void mpix_convert_rggb8_to_rgb24_3x3(const uint8_t *i0, const uint8_t *i1, const
     // Left edge handling
     {
         const uint8_t fold_l[3][3] = FOLD_L_3X3(i0, i1, i2);
-        mpix_rggb8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
+        mpix_grbg8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
     }
     
     // Main processing loop
-    for (size_t idx = 1; idx + 1 < w; ++idx) {
-        mpix_rggb8_to_rgb24_3x3(&i0[idx - 1], &i1[idx - 1], &i2[idx - 1], 
-                                 &o0[idx * 3]);
+    for (size_t i = 0, o = 3; i + 4 <= w; i += 2, o += 6) {
+        mpix_rggb8_to_rgb24_3x3(&i0[i + 0], &i1[i + 0], &i2[i + 0], &o0[o + 0]);
+        mpix_grbg8_to_rgb24_3x3(&i0[i + 1], &i1[i + 1], &i2[i + 1], &o0[o + 3]);
     }
     
     // Right edge handling
@@ -294,13 +288,13 @@ void mpix_convert_bggr8_to_rgb24_3x3(const uint8_t *i0, const uint8_t *i1, const
     // Left edge handling
     {
         const uint8_t fold_l[3][3] = FOLD_L_3X3(i0, i1, i2);
-        mpix_bggr8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
+        mpix_gbrg8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
     }
     
     // Main processing loop
-    for (size_t idx = 1; idx + 1 < w; ++idx) {
-        mpix_bggr8_to_rgb24_3x3(&i0[idx - 1], &i1[idx - 1], &i2[idx - 1], 
-                                 &o0[idx * 3]);
+    for (size_t i = 0, o = 3; i + 4 <= w; i += 2, o += 6) {
+        mpix_bggr8_to_rgb24_3x3(&i0[i + 0], &i1[i + 0], &i2[i + 0], &o0[o + 0]);
+        mpix_gbrg8_to_rgb24_3x3(&i0[i + 1], &i1[i + 1], &i2[i + 1], &o0[o + 3]);
     }
     
     // Right edge handling
@@ -317,13 +311,13 @@ void mpix_convert_grbg8_to_rgb24_3x3(const uint8_t *i0, const uint8_t *i1, const
     // Left edge handling
     {
         const uint8_t fold_l[3][3] = FOLD_L_3X3(i0, i1, i2);
-        mpix_grbg8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
+        mpix_rggb8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
     }
     
     // Main processing loop
-    for (size_t idx = 1; idx + 1 < w; ++idx) {
-        mpix_grbg8_to_rgb24_3x3(&i0[idx - 1], &i1[idx - 1], &i2[idx - 1], 
-                                 &o0[idx * 3]);
+    for (size_t i = 0, o = 3; i + 4 <= w; i += 2, o += 6) {
+        mpix_grbg8_to_rgb24_3x3(&i0[i + 0], &i1[i + 0], &i2[i + 0], &o0[o + 0]);
+        mpix_rggb8_to_rgb24_3x3(&i0[i + 1], &i1[i + 1], &i2[i + 1], &o0[o + 3]);
     }
     
     // Right edge handling
@@ -340,13 +334,13 @@ void mpix_convert_gbrg8_to_rgb24_3x3(const uint8_t *i0, const uint8_t *i1, const
     // Left edge handling
     {
         const uint8_t fold_l[3][3] = FOLD_L_3X3(i0, i1, i2);
-        mpix_gbrg8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
+        mpix_bggr8_to_rgb24_3x3(fold_l[0], fold_l[1], fold_l[2], &o0[0]);
     }
     
     // Main processing loop
-    for (size_t idx = 1; idx + 1 < w; ++idx) {
-        mpix_gbrg8_to_rgb24_3x3(&i0[idx - 1], &i1[idx - 1], &i2[idx - 1], 
-                                 &o0[idx * 3]);
+    for (size_t i = 0, o = 3; i + 4 <= w; i += 2, o += 6) {
+        mpix_gbrg8_to_rgb24_3x3(&i0[i + 0], &i1[i + 0], &i2[i + 0], &o0[o + 0]);
+        mpix_bggr8_to_rgb24_3x3(&i0[i + 1], &i1[i + 1], &i2[i + 1], &o0[o + 3]);
     }
     
     // Right edge handling
