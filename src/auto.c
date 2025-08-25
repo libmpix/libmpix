@@ -49,7 +49,7 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 	/* Update the value itself */
 	ctrls->exposure_level = CLAMP(val, 1, ctrls->exposure_max);
 
-	MPIX_DBG("New exposure value: %u/%u", ctrls->exposure_level, ctrls->exposure.max);
+	MPIX_DBG("New exposure value: %u/%u", ctrls->exposure_level, ctrls->exposure_max);
 
 	if (ctrls->dev != NULL) {
 		mpix_port_set_exposure(ctrls->dev, ctrls->exposure_level);
