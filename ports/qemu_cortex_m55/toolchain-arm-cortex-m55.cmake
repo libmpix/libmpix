@@ -40,12 +40,9 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
 # Cortex-M55 specific flags
 set(CPU_FLAGS
-    "-mcpu=cortex-m55"
-    "-mthumb"
-    "-mfloat-abi=hard"
-    "-mfpu=auto"
-    "-D__ARM_FEATURE_MVE=1"
-    "-D__ARM_FEATURE_MVE_FP=1"
+    "-mcpu=cortex-m55" 
+    "-mfloat-abi=hard" 
+    "-mfpu=auto" 
 )
 
 # Common flags for both C and CXX

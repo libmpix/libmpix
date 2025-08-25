@@ -4,7 +4,8 @@
 
 #include <stdint.h>
 #include "system_cortex_m55.h"
-
+#include "cmsis_gcc.h"
+#include "core_cm55.h"
 /* Stack pointer initialization */
 extern uint32_t _estack;
 
@@ -89,16 +90,15 @@ void Reset_Handler(void)
         *dest++ = 0;
     }
     
-    /* Enable FPU if available */
-    #ifdef __ARM_FEATURE_FMA
-    /* Set CP10 and CP11 for full access */
-    SCB->CPACR |= ((3UL << 20) | (3UL << 22));
-    #endif
-    
-    /* Enable MVE if available */
-    #ifdef __ARM_FEATURE_MVE
-    /* Enable MVE and FP access */
-    SCB->CPACR |= ((3UL << 20) | (3UL << 22));
+    /* Configure coprocessor access control register */
+    #if defined(__ARM_FEATURE_MVE) || defined(__ARM_FEATURE_FMA) || defined(__VFP_FP__)
+    {
+        uint32_t cpacr = SCB->CPACR;
+        cpacr |= (3UL << 20) | (3UL << 22);  // 设置 CP10 和 CP11 为 0b11 (Full Access)
+        SCB->CPACR = cpacr;
+        __DSB();  // Data Synchronization Barrier
+        __ISB();  // Instruction Synchronization Barrier，确保配置生效
+    }
     #endif
     
     /* Call main function */

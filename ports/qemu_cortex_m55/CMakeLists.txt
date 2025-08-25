@@ -4,30 +4,13 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Set up cross-compilation environment BEFORE project() call
-set(CMAKE_SYSTEM_NAME Generic)
-set(CMAKE_SYSTEM_PROCESSOR arm)
-
-# Use the specified GCC ARM toolchain
-set(CMAKE_C_COMPILER /opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc)
-set(CMAKE_CXX_COMPILER /opt/gcc-arm-none-eabi/bin/arm-none-eabi-g++)
-set(CMAKE_ASM_COMPILER /opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc)
-set(CMAKE_OBJCOPY /opt/gcc-arm-none-eabi/bin/arm-none-eabi-objcopy)
-set(CMAKE_OBJDUMP /opt/gcc-arm-none-eabi/bin/arm-none-eabi-objdump)
-set(CMAKE_SIZE /opt/gcc-arm-none-eabi/bin/arm-none-eabi-size)
-
-# Skip compiler tests for cross-compilation
-set(CMAKE_C_COMPILER_WORKS 1)
-set(CMAKE_CXX_COMPILER_WORKS 1)
-
 project(libmpix_qemu_cortex_m55 LANGUAGES C)
 
 # Cortex-M55 specific flags
 set(CORTEX_M55_FLAGS 
-    "-mcpu=cortex-m55"
-    "-mthumb"
-    "-mfloat-abi=hard"
-    "-mfpu=auto"
+    "-mcpu=cortex-m55" 
+    "-mfloat-abi=hard" 
+    "-mfpu=auto" 
 )
 
 # Common compiler flags
@@ -42,6 +25,11 @@ set(COMMON_FLAGS
     "--specs=nano.specs"
     "-u _printf_float"
     "-u _scanf_float"
+    "-Wconversion"
+    "-Wsign-conversion"
+    "-Wincompatible-pointer-types"
+    "-flax-vector-conversions"
+    "-std=gnu11"
 )
 
 # Set up paths
@@ -51,6 +39,7 @@ file(REAL_PATH ../.. LIBMPIX_DIR)
 set(INCLUDE_DIRS
     ${LIBMPIX_DIR}/include
     ${LIBMPIX_DIR}/ports/qemu_cortex_m55
+    ${LIBMPIX_DIR}/CMSIS_6/CMSIS/Core/Include/
 )
 
 # Generate genlist.h
@@ -69,6 +58,7 @@ execute_process(
 )
 
 list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 
 # Common source files
 set(LIBMPIX_COMMON_SRC
@@ -99,6 +89,14 @@ else()
     list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_convert.c)
     message(STATUS "Using CPU convert implementation")
 endif()
+
+# Handle kernel operation - use ARM Helium if available, otherwise CPU
+if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_kernel_helium.c)
+    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_kernel_helium.c)
+    message(STATUS "Using ARM Helium MVE kernel implementation")
+endif()
+# Always include base kernel implementation for the main API functions
+list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_kernel.c)
 
 # Add other operations if needed - you can extend this pattern
 # Always include the CPU version if no ARM version exists
@@ -149,7 +147,45 @@ target_compile_options(mpix_core PRIVATE
     "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
     "-DCONFIG_MPIX_LOG_LEVEL=4"
     "-DQEMU_CORTEX_M55=1"
+    "-DARM_MATH_HELIUM=1"
+    "-DARM_MATH_CM55=1"
+    "-D__DSP_PRESENT=1"
+    "-D__FPU_PRESENT=1"
 )
+
+# Create test executable for kernel
+add_executable(test_kernel_helium
+    ${LIBMPIX_DIR}/tests/kernel/main.c
+)
+
+target_link_libraries(test_kernel_helium 
+    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+    -lm
+)
+
+target_compile_options(test_kernel_helium PRIVATE 
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+    "-DCONFIG_MPIX_LOG_LEVEL=4"
+    "-DQEMU_CORTEX_M55=1"
+)
+
+# Linker flags for kernel test
+target_link_options(test_kernel_helium PRIVATE
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-Wl,--gc-sections"
+    "-Wl,--print-memory-usage"
+    "--specs=nano.specs"
+    "-u _printf_float"
+    "-u _scanf_float"
+    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+    "-Wl,-Map=test_kernel_helium.map"
+)
+
+# Set output name for kernel test
+set_target_properties(test_kernel_helium PROPERTIES OUTPUT_NAME "test_kernel_helium.elf")
 
 # Create test executable for debayer
 add_executable(test_debayer_helium

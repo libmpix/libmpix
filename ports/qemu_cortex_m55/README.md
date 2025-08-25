@@ -27,8 +27,7 @@ mkdir build_cortex_m55
 cd build_cortex_m55
 
 # Configure CMake for Cortex-M55
-cmake .. -DCMAKE_TOOLCHAIN_FILE=../../../ports/qemu_cortex_m55/CMakeLists.txt
-
+cmake -DCMAKE_TOOLCHAIN_FILE=/home/baozhu/storage/libmpix/ports/qemu_cortex_m55/toolchain-arm-cortex-m55.cmake -B build ports/qemu_cortex_m55
 # Build the test
 make
 
