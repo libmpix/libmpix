@@ -10,6 +10,7 @@
 #include <mpix/formats.h>
 #include <mpix/op.h>
 #include <mpix/op_correction.h>
+#include <mpix/op_crop.h>
 #include <mpix/op_kernel.h>
 #include <mpix/op_palettize.h>
 #include <mpix/op_resize.h>
@@ -242,6 +243,22 @@ int mpix_image_jpeg_encode(struct mpix_image *img, enum mpix_jpeg_quality qualit
  */
 int mpix_image_resize(struct mpix_image *img, enum mpix_resize_type type,
 		      uint16_t width, uint16_t height);
+
+/**
+ * @brief Crop an image to a smaller region.
+ *
+ * An operation is added to crop the image to a specified rectangular region.
+ * The crop region must be within the bounds of the original image.
+ *
+ * @param img Image to crop.
+ * @param x_offset X coordinate of the top-left corner of the crop region.
+ * @param y_offset Y coordinate of the top-left corner of the crop region.
+ * @param crop_width Width of the crop region in pixels.
+ * @param crop_height Height of the crop region in pixels.
+ * @return 0 on success or negative error code.
+ */
+int mpix_image_crop(struct mpix_image *img, uint16_t x_offset, uint16_t y_offset,
+		    uint16_t crop_width, uint16_t crop_height);
 
 /**
  * @brief Apply a kernel operation on an image.

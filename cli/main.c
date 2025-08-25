@@ -39,6 +39,50 @@ static int str_get_value(const struct mpix_str *table, const char *name, uint32_
 	return ret;
 }
 
+static int parse_crop_region(char *arg, uint16_t *x_offset, uint16_t *y_offset,
+			      uint16_t *crop_width, uint16_t *crop_height)
+{
+	unsigned long long ull;
+	char *ptr = arg;
+
+	/* Parse x_offset */
+	ull = strtoull(ptr, &ptr, 10);
+	if (*ptr != ',' || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid x_offset in <x>,<y>,<width>,<height> parameter '%s'", arg);
+		return -EINVAL;
+	}
+	*x_offset = ull;
+	ptr++; /* skip ',' */
+
+	/* Parse y_offset */
+	ull = strtoull(ptr, &ptr, 10);
+	if (*ptr != ',' || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid y_offset in <x>,<y>,<width>,<height> parameter '%s'", arg);
+		return -EINVAL;
+	}
+	*y_offset = ull;
+	ptr++; /* skip ',' */
+
+	/* Parse crop_width */
+	ull = strtoull(ptr, &ptr, 10);
+	if (*ptr != ',' || ull == 0 || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid crop_width in <x>,<y>,<width>,<height> parameter '%s'", arg);
+		return -EINVAL;
+	}
+	*crop_width = ull;
+	ptr++; /* skip ',' */
+
+	/* Parse crop_height */
+	ull = strtoull(ptr, &ptr, 10);
+	if (*ptr != '\0' || ull == 0 || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid crop_height in <x>,<y>,<width>,<height> parameter '%s'", arg);
+		return -EINVAL;
+	}
+	*crop_height = ull;
+
+	return 0;
+}
+
 static int parse_width_height(char *arg, uint16_t *width, uint16_t *height)
 {
 	unsigned long long ull;
@@ -428,6 +472,24 @@ static int cmd_resize(int argc, char **argv)
 	return mpix_image_resize(&img, type, width, height);
 }
 
+static int cmd_crop(int argc, char **argv)
+{
+	uint16_t x_offset = 0, y_offset = 0;
+	uint16_t crop_width = 0, crop_height = 0;
+	int ret;
+
+	if (argc != 2) {
+		return -EINVAL;
+	}
+
+	ret = parse_crop_region(argv[1], &x_offset, &y_offset, &crop_width, &crop_height);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpix_image_crop(&img, x_offset, y_offset, crop_width, crop_height);
+}
+
 static int cmd_correction(int argc, char **argv)
 {
 	union mpix_correction_any corr = {0};
@@ -550,6 +612,7 @@ struct {
 
 	/* Size-related operations */
 	{"resize",	&cmd_resize,	"... ! resize <type> <width>x<height> ! ..."},
+	{"crop",	&cmd_crop,	"... ! crop <x>,<y>,<width>,<height> ! ..."},
 
 	/* Compression operations */
 	{"qoi_encode",	&cmd_qoi_encode, "... ! qoi_encode ! ..."},
