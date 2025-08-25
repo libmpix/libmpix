@@ -1,0 +1,38 @@
+digraph crop_operation {
+	rankdir=LR;
+	node [shape=box, style=filled];
+	
+	// Input
+	input [label="Input Image\n(W×H)", fillcolor=lightblue];
+	
+	// Crop operation
+	crop [label="Crop Operation\n(x,y,w,h)", fillcolor=lightgreen];
+	
+	// Output
+	output [label="Cropped Image\n(w×h)", fillcolor=lightcoral];
+	
+	// Processing steps
+	skip_lines [label="Skip lines\n< y_offset", fillcolor=lightyellow, shape=ellipse];
+	crop_lines [label="Crop lines\n[y_offset, y_offset+h)", fillcolor=lightgreen, shape=ellipse];
+	ignore_lines [label="Ignore lines\n≥ y_offset+h", fillcolor=lightgray, shape=ellipse];
+	
+	// Flow
+	input -> crop;
+	crop -> skip_lines;
+	skip_lines -> crop_lines;
+	crop_lines -> ignore_lines;
+	crop_lines -> output;
+	
+	// Annotations
+	subgraph cluster_validation {
+		label="Input Validation";
+		style=dotted;
+		validate1 [label="x + w ≤ W", fillcolor=white, shape=diamond];
+		validate2 [label="y + h ≤ H", fillcolor=white, shape=diamond];
+		validate3 [label="w > 0, h > 0", fillcolor=white, shape=diamond];
+	}
+	
+	crop -> validate1 [style=dotted];
+	crop -> validate2 [style=dotted];
+	crop -> validate3 [style=dotted];
+}

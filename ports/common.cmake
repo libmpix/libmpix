@@ -11,6 +11,7 @@ set(LIBMPIX_SRC
   ${LIBMPIX_DIR}/src/image.c
   ${LIBMPIX_DIR}/src/op_convert.c
   ${LIBMPIX_DIR}/src/op_correction.c
+  ${LIBMPIX_DIR}/src/op_crop.c
   ${LIBMPIX_DIR}/src/op_debayer.c
   ${LIBMPIX_DIR}/src/op_jpeg.c
   ${LIBMPIX_DIR}/src/op_kernel.c
