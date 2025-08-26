@@ -7,9 +7,11 @@
 
 #include <mpix/image.h>
 
+#include "image.c"
+
 #include <string.h>
 
-#define DEBUG (0)
+#define DEBUG (1)
 
 
 #ifdef MICROPY_ENABLE_DYNRUNTIME
@@ -43,8 +45,7 @@ static const mp_obj_type_t mod_mpix_type;
 // Create a new instance
 static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
     mp_obj_t width_obj,
-    mp_obj_t height_obj,
-    mp_obj_t format_obj)
+    mp_obj_t height_obj)
 {
 
     // TODO: keep a pointer to data_obj, or explicity ref
@@ -52,7 +53,7 @@ static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
     // Check model data
     mp_buffer_info_t bufinfo;
     // TOOD: use only READ?
-    mp_get_buffer_raise(model_data_obj, &bufinfo, MP_BUFFER_RW);
+    mp_get_buffer_raise(data_obj, &bufinfo, MP_BUFFER_RW);
 
 #if DEBUG
     mp_printf(&mp_plat_print, "mpix-image-new data.typecode=%c \n", bufinfo.typecode);
@@ -66,12 +67,13 @@ static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
 
     // Construct object
     mp_obj_mod_mpix_t *o = mp_obj_malloc(mp_obj_mod_mpix_t, (mp_obj_type_t *)&mod_mpix_type);
-    tm_mdl_t *model = &o->model;
 
     mp_int_t width = mp_obj_get_int(width_obj);
     mp_int_t height = mp_obj_get_int(height_obj);
     // FIXME: check that width/height are sane
 
+    // TODO: support a string to specify FOURCC format, using MPIX_FOURCC() macro
+    const uint32_t format = MPIX_FMT_GREY;
 
     mpix_image_from_buf(&o->image, data_buffer, data_length, width, height, format);
 
@@ -83,9 +85,7 @@ static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
 #endif
 
 #if DEBUG
-    mp_printf(&mp_plat_print, "cnn-new-done in.dims=(%d,%d,%d,%d) out.dims=(%d,%d,%d,%d) \n",
-        o->input.dims, o->input.h, o->input.w, o->input.c,
-        o->out_dims[0], o->out_dims[1], o->out_dims[2], o->out_dims[3]);
+    mp_printf(&mp_plat_print, "mpix-image-done");
 #endif
 
     return MP_OBJ_FROM_PTR(o);
@@ -96,12 +96,8 @@ static MP_DEFINE_CONST_FUN_OBJ_3(mod_mpix_new_obj, mod_mpix_new);
 static mp_obj_t mod_mpix_del(mp_obj_t self_obj) {
 
     mp_obj_mod_mpix_t *o = MP_OBJ_TO_PTR(self_obj);
-    tm_mdl_t *model = &o->model;
 
-    mpix_image_free(struct mpix_image *img);
-
-    m_del(uint8_t, o->model_buffer, o->model_buffer_length);
-    m_del(uint8_t, o->data_buffer, o->data_buffer_length);
+    mpix_image_free(&o->image);
 
     return mp_const_none;
 }
@@ -117,7 +113,7 @@ mp_obj_t mpy_init(mp_obj_fun_bc_t *self, size_t n_args, size_t n_kw, mp_obj_t *a
     // This must be first, it sets up the globals dict and other things
     MP_DYNRUNTIME_INIT_ENTRY
 
-    mp_store_global(MP_QSTR_new, MP_OBJ_FROM_PTR(&mod_mpix_new_obj));
+    mp_store_global(MP_QSTR_from_buf, MP_OBJ_FROM_PTR(&mod_mpix_new_obj));
 
     mod_mpix_type.base.type = (void*)&mp_fun_table.type_type;
     mod_mpix_type.flags = MP_TYPE_FLAG_ITER_IS_CUSTOM;
