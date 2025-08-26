@@ -6,13 +6,13 @@
 #endif
 
 #include <mpix/image.h>
+#include <mpix/port.h>
 
 #include "image.c"
 
 #include <string.h>
 
 #define DEBUG (1)
-
 
 #ifdef MICROPY_ENABLE_DYNRUNTIME
 // memset is used by some standard C constructs
@@ -25,6 +25,36 @@ void *memset(void *s, int c, size_t n) {
 }
 #endif
 #endif
+
+// libmpix port definiton
+uint8_t mpix_bits_per_pixel_cb(uint32_t fourcc)
+{
+	/* Default implementation to be overwritten by the application */
+	return 0;
+}
+
+uint32_t mpix_port_get_uptime_us(void)
+{
+    // TODO: implement if benchmarking is needed
+	return 0;
+}
+
+void *mpix_port_alloc(size_t size)
+{
+	return m_malloc(size);
+}
+
+void mpix_port_free(void *mem)
+{
+	m_free(mem);
+}
+
+void mpix_port_printf(const char *fmt, ...)
+{
+    // TODO: forward to MicroPython
+    // mp_printf(&mp_plat_print, "%s \n", fmt);
+}
+
 
 // MicroPython type
 typedef struct _mp_obj_mod_mpix_t {
@@ -85,7 +115,7 @@ static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
 #endif
 
 #if DEBUG
-    mp_printf(&mp_plat_print, "mpix-image-done");
+    mp_printf(&mp_plat_print, "mpix-image-done\n");
 #endif
 
     return MP_OBJ_FROM_PTR(o);
@@ -117,7 +147,7 @@ mp_obj_t mpy_init(mp_obj_fun_bc_t *self, size_t n_args, size_t n_kw, mp_obj_t *a
 
     mod_mpix_type.base.type = (void*)&mp_fun_table.type_type;
     mod_mpix_type.flags = MP_TYPE_FLAG_ITER_IS_CUSTOM;
-    mod_mpix_type.name = MP_QSTR_tinymaixcnn;
+    mod_mpix_type.name = MP_QSTR_mpix_image;
     // methods
     mod_locals_dict_table[0] = (mp_map_elem_t){ MP_OBJ_NEW_QSTR(MP_QSTR___del__), MP_OBJ_FROM_PTR(&mod_mpix_del_obj) };
 
