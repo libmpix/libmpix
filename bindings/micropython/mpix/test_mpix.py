@@ -4,7 +4,7 @@ import mpix
 
 from microbmp import MicroBMP
 
-def load_bmp(path)
+def load_bmp(path):
     bmp = MicroBMP().load(path)
     width = bmp.DIB_w
     height = bmp.DIB_h
@@ -21,7 +21,7 @@ def make_filled(width, height, value=0):
 def test_black_correct():
     width, height = 10, 10
 
-    inp = make_filled(width, height)
+    inp = make_filled(width, height, 255)
     print('inp', inp)
 
     # test black-level correction
@@ -32,7 +32,7 @@ def test_black_correct():
 
     print(out)
 
-    del img
+    del inp
 
 if __name__ == "__main__":
     test_black_correct()
