@@ -9,6 +9,7 @@
 #include <mpix/port.h>
 
 #include "image.c"
+#include "op_correction.c"
 
 #include <string.h>
 
@@ -89,8 +90,9 @@ static mp_obj_t mod_mpix_new(mp_obj_t data_obj,
     mp_printf(&mp_plat_print, "mpix-image-new data.typecode=%c \n", bufinfo.typecode);
 #endif
 
+    // FIXME: support also bytearray/bytes and also test with framebuf
     if (bufinfo.typecode != 'B') {
-        mp_raise_ValueError(MP_ERROR_TEXT("model should be bytes"));
+        mp_raise_ValueError(MP_ERROR_TEXT("buffer should be bytes"));
     }
     uint8_t *data_buffer = bufinfo.buf;
     const int data_length = bufinfo.len / sizeof(*data_buffer);
@@ -134,8 +136,65 @@ static mp_obj_t mod_mpix_del(mp_obj_t self_obj) {
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_mpix_del_obj, mod_mpix_del);
 
 
+
+// to_buffer - will automatically process output image
+static mp_obj_t mod_mpix_to_buffer(mp_obj_t self_obj, mp_obj_t out_obj)
+{
+    mp_obj_mod_mpix_t *self = MP_OBJ_TO_PTR(self_obj);
+
+    // Check model data
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(out_obj, &bufinfo, MP_BUFFER_RW);
+
+    // FIXME: support also bytearray/bytes and also test with framebuf
+    if (bufinfo.typecode != 'B') {
+        mp_raise_ValueError(MP_ERROR_TEXT("buffer should be bytes"));
+    }
+    uint8_t *data_buffer = bufinfo.buf;
+    const int data_length = bufinfo.len / sizeof(*data_buffer);
+
+    const int status = mpix_image_to_buf(&self->image, data_buffer, data_length);
+    if (status != 0) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed"));
+    }
+
+#if DEBUG
+    mp_printf(&mp_plat_print, "mpix-to-buffer \n");
+#endif
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_mpix_to_buffer_obj, mod_mpix_to_buffer);
+
+
+// to_buffer - will automatically process output image
+static mp_obj_t mod_mpix_correct(mp_obj_t self_obj, mp_obj_t level_obj)
+{
+    mp_obj_mod_mpix_t *self = MP_OBJ_TO_PTR(self_obj);
+
+    mp_int_t level = mp_obj_get_int(level_obj);
+
+    // TODO: support other correction operators outside of black-level
+    union mpix_correction_any corr = {0,};
+    corr.black_level.level = (uint8_t)level;
+
+    const int status = mpix_image_correction(&self->image, MPIX_CORRECTION_BLACK_LEVEL, &corr);
+    if (status != 0) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed"));
+    }
+
+#if DEBUG
+    mp_printf(&mp_plat_print, "mpix-correct-done black_level=%d \n", level);
+#endif
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(mod_mpix_correct_obj, mod_mpix_correct);
+
+
+
 #ifdef MICROPY_ENABLE_DYNRUNTIME // natmod
-mp_map_elem_t mod_locals_dict_table[1];
+mp_map_elem_t mod_locals_dict_table[3];
 static MP_DEFINE_CONST_DICT(mod_locals_dict, mod_locals_dict_table);
 
 // This is the entry point and is called when the module is imported
@@ -150,6 +209,8 @@ mp_obj_t mpy_init(mp_obj_fun_bc_t *self, size_t n_args, size_t n_kw, mp_obj_t *a
     mod_mpix_type.name = MP_QSTR_mpix_image;
     // methods
     mod_locals_dict_table[0] = (mp_map_elem_t){ MP_OBJ_NEW_QSTR(MP_QSTR___del__), MP_OBJ_FROM_PTR(&mod_mpix_del_obj) };
+    mod_locals_dict_table[1] = (mp_map_elem_t){ MP_OBJ_NEW_QSTR(MP_QSTR_to_buffer), MP_OBJ_FROM_PTR(&mod_mpix_to_buffer_obj) };
+    mod_locals_dict_table[2] = (mp_map_elem_t){ MP_OBJ_NEW_QSTR(MP_QSTR_correct), MP_OBJ_FROM_PTR(&mod_mpix_correct_obj) };
 
     MP_OBJ_TYPE_SET_SLOT(&mod_mpix_type, locals_dict, (void*)&mod_locals_dict, 1);
 

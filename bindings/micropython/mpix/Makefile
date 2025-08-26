@@ -32,6 +32,10 @@ $(DIST_FILE): $(MOD).mpy $(DIST_DIR)
 # Include to get the rules for compiling and linking the module
 include $(MPY_DIR)/py/dynruntime.mk
 
-CFLAGS += -I$(LIBMPIX_DIR)/include -I$(LIBMPIX_DIR)/src -Wno-error=unused-variable -Wno-error=multichar -Wdouble-promotion
+CFLAGS += -Ibuild/ -I$(LIBMPIX_DIR)/include -I$(LIBMPIX_DIR)/src -Wno-error=unused-variable -Wno-error=multichar -Wdouble-promotion
 
-dist: $(DIST_FILE)
+build/mpix/genlist.h:
+	mkdir -p build/mpix
+	python ${LIBMPIX_DIR}/scripts/genlist.py ${LIBMPIX_DIR}/src/*.c > $@
+
+dist: $(DIST_FILE) build/mpix/genlist.h
