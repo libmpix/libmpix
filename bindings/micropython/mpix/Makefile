@@ -34,8 +34,12 @@ include $(MPY_DIR)/py/dynruntime.mk
 
 CFLAGS += -Ibuild/ -I$(LIBMPIX_DIR)/include -I$(LIBMPIX_DIR)/src -Wno-error=unused-variable -Wno-error=multichar -Wdouble-promotion
 
+clean:
+	rm -rf build/
+
 build/mpix/genlist.h:
 	mkdir -p build/mpix
-	python ${LIBMPIX_DIR}/scripts/genlist.py ${LIBMPIX_DIR}/src/*.c > $@
+	#python ${LIBMPIX_DIR}/scripts/genlist.py ${LIBMPIX_DIR}/src/*.c > $@
+	touch $@
 
 dist: $(DIST_FILE) build/mpix/genlist.h
