@@ -39,50 +39,6 @@ static int str_get_value(const struct mpix_str *table, const char *name, uint32_
 	return ret;
 }
 
-static int parse_crop_region(char *arg, uint16_t *x_offset, uint16_t *y_offset,
-			      uint16_t *crop_width, uint16_t *crop_height)
-{
-	unsigned long long ull;
-	char *ptr = arg;
-
-	/* Parse x_offset */
-	ull = strtoull(ptr, &ptr, 10);
-	if (*ptr != ',' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid x_offset in <x>,<y>,<width>,<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-	*x_offset = ull;
-	ptr++; /* skip ',' */
-
-	/* Parse y_offset */
-	ull = strtoull(ptr, &ptr, 10);
-	if (*ptr != ',' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid y_offset in <x>,<y>,<width>,<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-	*y_offset = ull;
-	ptr++; /* skip ',' */
-
-	/* Parse crop_width */
-	ull = strtoull(ptr, &ptr, 10);
-	if (*ptr != ',' || ull == 0 || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid crop_width in <x>,<y>,<width>,<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-	*crop_width = ull;
-	ptr++; /* skip ',' */
-
-	/* Parse crop_height */
-	ull = strtoull(ptr, &ptr, 10);
-	if (*ptr != '\0' || ull == 0 || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid crop_height in <x>,<y>,<width>,<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-	*crop_height = ull;
-
-	return 0;
-}
-
 static int parse_width_height(char *arg, uint16_t *width, uint16_t *height)
 {
 	unsigned long long ull;
@@ -476,16 +432,48 @@ static int cmd_crop(int argc, char **argv)
 {
 	uint16_t x_offset = 0, y_offset = 0;
 	uint16_t crop_width = 0, crop_height = 0;
-	int ret;
+	unsigned long long ull;
+	char *arg;
 
-	if (argc != 2) {
+	if (argc != 5) {
 		return -EINVAL;
 	}
 
-	ret = parse_crop_region(argv[1], &x_offset, &y_offset, &crop_width, &crop_height);
-	if (ret != 0) {
-		return ret;
+	/* Parse x_offset */
+	arg = argv[1];
+	ull = strtoull(arg, &arg, 10);
+	if (*arg != '\0' || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid x_offset '%s'", argv[1]);
+		return -EINVAL;
 	}
+	x_offset = ull;
+
+	/* Parse y_offset */
+	arg = argv[2];
+	ull = strtoull(arg, &arg, 10);
+	if (*arg != '\0' || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid y_offset '%s'", argv[2]);
+		return -EINVAL;
+	}
+	y_offset = ull;
+
+	/* Parse crop_width */
+	arg = argv[3];
+	ull = strtoull(arg, &arg, 10);
+	if (*arg != '\0' || ull == 0 || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid crop_width '%s'", argv[3]);
+		return -EINVAL;
+	}
+	crop_width = ull;
+
+	/* Parse crop_height */
+	arg = argv[4];
+	ull = strtoull(arg, &arg, 10);
+	if (*arg != '\0' || ull == 0 || ull > UINT16_MAX) {
+		MPIX_ERR("Invalid crop_height '%s'", argv[4]);
+		return -EINVAL;
+	}
+	crop_height = ull;
 
 	return mpix_image_crop(&img, x_offset, y_offset, crop_width, crop_height);
 }
@@ -612,7 +600,7 @@ struct {
 
 	/* Size-related operations */
 	{"resize",	&cmd_resize,	"... ! resize <type> <width>x<height> ! ..."},
-	{"crop",	&cmd_crop,	"... ! crop <x>,<y>,<width>,<height> ! ..."},
+	{"crop",	&cmd_crop,	"... ! crop <x> <y> <width> <height> ! ..."},
 
 	/* Compression operations */
 	{"qoi_encode",	&cmd_qoi_encode, "... ! qoi_encode ! ..."},
