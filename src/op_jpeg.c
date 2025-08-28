@@ -55,6 +55,7 @@ int init_jpeg(struct mpix_jpeg_op *op, uint8_t *buffer, size_t size)
 	return 0;
 }
 
+__attribute__((weak))
 void mpix_jpeg_encode_op(struct mpix_base_op *base)
 {
 	struct mpix_jpeg_op *op = (void *)base;

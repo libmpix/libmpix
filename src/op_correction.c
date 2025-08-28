@@ -18,7 +18,7 @@ void mpix_correction_op(struct mpix_base_op *base)
 			  base->width, line_offset, &op->correction);
 	mpix_op_done(base);
 }
-
+__attribute__((weak))
 void mpix_correction_black_level_raw8(const uint8_t *src, uint8_t *dst, uint16_t width,
 				      uint16_t line_offset, union mpix_correction_any *corr)
 {
@@ -35,6 +35,7 @@ MPIX_REGISTER_CORRECTION_OP(blc_sgrbg8, mpix_correction_black_level_raw8, BLACK_
 MPIX_REGISTER_CORRECTION_OP(blc_sgbrg8, mpix_correction_black_level_raw8, BLACK_LEVEL, SGBRG8);
 MPIX_REGISTER_CORRECTION_OP(blc_grey, mpix_correction_black_level_raw8, BLACK_LEVEL, GREY);
 
+__attribute__((weak))
 void mpix_correction_black_level_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
 				       uint16_t line_offset, union mpix_correction_any *corr)
 {
@@ -48,6 +49,7 @@ void mpix_correction_black_level_rgb24(const uint8_t *src, uint8_t *dst, uint16_
 }
 MPIX_REGISTER_CORRECTION_OP(blc_rgb24, mpix_correction_black_level_rgb24, BLACK_LEVEL, RGB24);
 
+__attribute__((weak))
 void mpix_correction_white_balance_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
 					 uint16_t line_offset, union mpix_correction_any *corr)
 {
@@ -124,6 +126,7 @@ static const uint8_t mpix_gamma_x[] = {
 	1, 4, 16, 64,				/* x scale */
 };
 
+__attribute__((weak))
 void mpix_correction_gamma_raw8(const uint8_t *src, uint8_t *dst, uint16_t width,
 				uint16_t line_offset, union mpix_correction_any *corr)
 {
@@ -141,6 +144,8 @@ MPIX_REGISTER_CORRECTION_OP(gc_sgrbg8, mpix_correction_gamma_raw8, GAMMA, SGRBG8
 MPIX_REGISTER_CORRECTION_OP(gc_sgbrg8, mpix_correction_gamma_raw8, GAMMA, SGBRG8);
 MPIX_REGISTER_CORRECTION_OP(gc_grey, mpix_correction_gamma_raw8, GAMMA, GREY);
 
+
+__attribute__((weak))
 void mpix_correction_gamma_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
 				 uint16_t line_offset, union mpix_correction_any *corr)
 {
@@ -155,6 +160,7 @@ void mpix_correction_gamma_rgb24(const uint8_t *src, uint8_t *dst, uint16_t widt
 }
 MPIX_REGISTER_CORRECTION_OP(gc_rgb24, mpix_correction_gamma_rgb24, GAMMA, RGB24);
 
+__attribute__((weak))
 void mpix_correction_color_matrix_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
 		                        uint16_t line_offset, union mpix_correction_any *corr)
 {
