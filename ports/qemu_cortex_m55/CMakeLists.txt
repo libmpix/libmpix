@@ -98,6 +98,12 @@ endif()
 # Always include base kernel implementation for the main API functions
 list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_kernel.c)
 
+# Handle palettize operation - use ARM Helium if available, otherwise CPU
+if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_palettize_helium.c)
+    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_palettize_helium.c)
+    message(STATUS "Using ARM Helium MVE palettize implementation")
+endif()
+
 # Add other operations if needed - you can extend this pattern
 # Always include the CPU version if no ARM version exists
 set(CPU_ONLY_OPERATIONS
@@ -123,6 +129,12 @@ foreach(op ${CPU_ONLY_OPERATIONS})
         endif()
     endif()
 endforeach()
+
+# Add ARM Helium correction implementation if present (custom filename)
+if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_kernel_correction.c)
+    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_correction_helium.c)
+    message(STATUS "Using ARM Helium MVE correction implementation")
+endif()
 
 # Port-specific sources
 set(LIBMPIX_PORT_SRC
@@ -162,6 +174,38 @@ target_link_libraries(test_kernel_helium
     -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
     -lm
 )
+
+# Create test executable for palettize
+add_executable(test_palettize_helium
+    ${LIBMPIX_DIR}/tests/palettize/main.c
+)
+
+target_link_libraries(test_palettize_helium 
+    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+    -lm
+)
+
+target_compile_options(test_palettize_helium PRIVATE 
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+    "-DCONFIG_MPIX_LOG_LEVEL=4"
+    "-DQEMU_CORTEX_M55=1"
+)
+
+target_link_options(test_palettize_helium PRIVATE
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-Wl,--gc-sections"
+    "-Wl,--print-memory-usage"
+    "--specs=nano.specs"
+    "-u _printf_float"
+    "-u _scanf_float"
+    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+    "-Wl,-Map=test_palettize_helium.map"
+)
+
+set_target_properties(test_palettize_helium PROPERTIES OUTPUT_NAME "test_palettize_helium.elf")
 
 target_compile_options(test_kernel_helium PRIVATE 
     ${CORTEX_M55_FLAGS}
@@ -217,6 +261,38 @@ target_link_options(test_debayer_helium PRIVATE
     "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
     "-Wl,-Map=test_debayer_helium.map"
 )
+
+# Create test executable for correction
+add_executable(test_correction_helium
+    ${LIBMPIX_DIR}/tests/correction/main.c
+)
+
+target_link_libraries(test_correction_helium 
+    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+    -lm
+)
+
+target_compile_options(test_correction_helium PRIVATE 
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+    "-DCONFIG_MPIX_LOG_LEVEL=4"
+    "-DQEMU_CORTEX_M55=1"
+)
+
+target_link_options(test_correction_helium PRIVATE
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-Wl,--gc-sections"
+    "-Wl,--print-memory-usage"
+    "--specs=nano.specs"
+    "-u _printf_float"
+    "-u _scanf_float"
+    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+    "-Wl,-Map=test_correction_helium.map"
+)
+
+set_target_properties(test_correction_helium PROPERTIES OUTPUT_NAME "test_correction_helium.elf")
 
 # Set output name
 set_target_properties(test_debayer_helium PROPERTIES OUTPUT_NAME "test_debayer_helium.elf")
