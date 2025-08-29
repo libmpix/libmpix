@@ -62,6 +62,7 @@ list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Common source files
 set(LIBMPIX_COMMON_SRC
+    ${LIBMPIX_DIR}/src/JPEGENC.c
     ${LIBMPIX_DIR}/src/formats.c
     ${LIBMPIX_DIR}/src/image.c
     ${LIBMPIX_DIR}/src/print.c
@@ -104,6 +105,17 @@ if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_palettize_helium.c)
     message(STATUS "Using ARM Helium MVE palettize implementation")
 endif()
 
+
+# Handle JPEG operation - use ARM Helium if available, otherwise CPU
+if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_jpeg_helium.c)
+    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_jpeg_helium.c)
+    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/JPEGENC_helium.c)
+    message(STATUS "Using ARM Helium MVE JPEG implementation")
+endif()
+
+
+
+
 # Add other operations if needed - you can extend this pattern
 # Always include the CPU version if no ARM version exists
 set(CPU_ONLY_OPERATIONS
@@ -131,7 +143,7 @@ foreach(op ${CPU_ONLY_OPERATIONS})
 endforeach()
 
 # Add ARM Helium correction implementation if present (custom filename)
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_kernel_correction.c)
+if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_correction_helium.c)
     list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_correction_helium.c)
     message(STATUS "Using ARM Helium MVE correction implementation")
 endif()
@@ -328,6 +340,38 @@ target_link_options(simple_test PRIVATE
 )
 
 set_target_properties(simple_test PROPERTIES OUTPUT_NAME "simple_test.elf")
+
+# Create JPEG test executable (validates Helium quantize vs baseline)
+add_executable(test_jpeg_helium
+    ${LIBMPIX_DIR}/tests/jpeg/main.c
+)
+
+target_link_libraries(test_jpeg_helium 
+    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+    -lm
+)
+
+target_compile_options(test_jpeg_helium PRIVATE 
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+    "-DCONFIG_MPIX_LOG_LEVEL=4"
+    "-DQEMU_CORTEX_M55=1"
+)
+
+target_link_options(test_jpeg_helium PRIVATE
+    ${CORTEX_M55_FLAGS}
+    ${COMMON_FLAGS}
+    "-Wl,--gc-sections"
+    "-Wl,--print-memory-usage"
+    "--specs=nano.specs"
+    "-u _printf_float"
+    "-u _scanf_float"
+    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+    "-Wl,-Map=test_jpeg_helium.map"
+)
+
+set_target_properties(test_jpeg_helium PROPERTIES OUTPUT_NAME "test_jpeg_helium.elf")
 
 # Show build information
 message(STATUS "Building for Cortex-M55 with ARM Helium MVE support")
