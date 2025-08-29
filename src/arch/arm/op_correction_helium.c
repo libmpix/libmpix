@@ -21,6 +21,89 @@ static inline mve_pred16_t mpix_tail_pred_u8(unsigned lanes)
     return vctp8q((uint32_t)lanes & 0xFF);
 }
 
+/* -------------------- SOA helpers (deinterleave / reinterleave) -------------------- */
+
+/* Process by blocks to amortize gathers and operate on contiguous planar memory. */
+#define MPIX_SOA_BLK 128u /* pixels per block (multiple of 16 recommended) */
+
+#if defined(__GNUC__)
+#define MPIX_ALIGNED16 __attribute__((aligned(16)))
+#else
+#define MPIX_ALIGNED16
+#endif
+
+static inline void mpix_deint_rgb24_block(const uint8_t *inb, uint16_t blk,
+                                          uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    /* Deinterleave AoS RGB24 into contiguous R,G,B buffers (length blk) */
+    uint8x16_t offs3 = mpix_rgb_offsets3();
+    uint16_t done = 0;
+    /* Fast path: full vectors */
+    while ((uint16_t)(blk - done) >= 16u) {
+        const uint8_t *base = inb + (uint32_t)done * 3u;
+        __builtin_prefetch(base + 96, 0, 1);
+        uint8x16_t rv = vldrbq_gather_offset_u8(base, vaddq_n_u8(offs3, 0));
+        uint8x16_t gv = vldrbq_gather_offset_u8(base, vaddq_n_u8(offs3, 1));
+        uint8x16_t bv = vldrbq_gather_offset_u8(base, vaddq_n_u8(offs3, 2));
+        vst1q_u8(r + done, rv);
+        vst1q_u8(g + done, gv);
+        vst1q_u8(b + done, bv);
+        done = (uint16_t)(done + 16);
+    }
+    /* Tail */
+    uint16_t rem = (uint16_t)(blk - done);
+    if (rem) {
+        mve_pred16_t p = vctp8q(rem);
+        const uint8_t *base = inb + (uint32_t)done * 3u;
+        uint8x16_t rv = vldrbq_gather_offset_z_u8(base, vaddq_n_u8(offs3, 0), p);
+        uint8x16_t gv = vldrbq_gather_offset_z_u8(base, vaddq_n_u8(offs3, 1), p);
+        uint8x16_t bv = vldrbq_gather_offset_z_u8(base, vaddq_n_u8(offs3, 2), p);
+        vst1q_p_u8(r + done, rv, p);
+        vst1q_p_u8(g + done, gv, p);
+        vst1q_p_u8(b + done, bv, p);
+    }
+}
+
+static inline void mpix_reint_rgb24_block(uint8_t *outb, uint16_t blk,
+                                          const uint8_t *r, const uint8_t *g, const uint8_t *b)
+{
+    /* Re-interleave contiguous R,G,B back to AoS RGB24 at outb */
+    uint8x16_t offs3 = mpix_rgb_offsets3();
+    uint16_t done = 0;
+    /* Fast path: full vectors */
+    while ((uint16_t)(blk - done) >= 16u) {
+        uint8x16_t rv = vld1q_u8(r + done);
+        uint8x16_t gv = vld1q_u8(g + done);
+        uint8x16_t bv = vld1q_u8(b + done);
+        uint8_t *dstb = outb + (uint32_t)done * 3u;
+        vstrbq_scatter_offset_s8((int8_t *)dstb, vreinterpretq_s8_u8(vaddq_n_u8(offs3, 0)),
+                                 vreinterpretq_s8_u8(rv));
+        vstrbq_scatter_offset_s8((int8_t *)dstb, vreinterpretq_s8_u8(vaddq_n_u8(offs3, 1)),
+                                 vreinterpretq_s8_u8(gv));
+        vstrbq_scatter_offset_s8((int8_t *)dstb, vreinterpretq_s8_u8(vaddq_n_u8(offs3, 2)),
+                                 vreinterpretq_s8_u8(bv));
+        done = (uint16_t)(done + 16);
+    }
+    /* Tail */
+    uint16_t rem = (uint16_t)(blk - done);
+    if (rem) {
+        mve_pred16_t p = vctp8q(rem);
+        uint8x16_t rv = vld1q_z_u8(r + done, p);
+        uint8x16_t gv = vld1q_z_u8(g + done, p);
+        uint8x16_t bv = vld1q_z_u8(b + done, p);
+        uint8x16_t offR = vaddq_n_u8(offs3, 0);
+        uint8x16_t offG = vaddq_n_u8(offs3, 1);
+        uint8x16_t offB = vaddq_n_u8(offs3, 2);
+        uint8_t *dstb = outb + (uint32_t)done * 3u;
+        vstrbq_scatter_offset_p_s8((int8_t *)dstb, vreinterpretq_s8_u8(offR),
+                                   vreinterpretq_s8_u8(rv), p);
+        vstrbq_scatter_offset_p_s8((int8_t *)dstb, vreinterpretq_s8_u8(offG),
+                                   vreinterpretq_s8_u8(gv), p);
+        vstrbq_scatter_offset_p_s8((int8_t *)dstb, vreinterpretq_s8_u8(offB),
+                                   vreinterpretq_s8_u8(bv), p);
+    }
+}
+
 /* -------------------- Black level -------------------- */
 
 void mpix_correction_black_level_raw8(const uint8_t *src, uint8_t *dst, uint16_t width,
@@ -48,50 +131,44 @@ void mpix_correction_black_level_rgb24(const uint8_t *src, uint8_t *dst, uint16_
                                        uint16_t line_offset, union mpix_correction_any *corr)
 {
     (void)line_offset;
-    uint8_t level = corr->black_level.level;
-    uint8x16_t offs3 = mpix_rgb_offsets3();
-    uint8x16_t offR = vaddq_n_u8(offs3, 0);
-    uint8x16_t offG = vaddq_n_u8(offs3, 1);
-    uint8x16_t offB = vaddq_n_u8(offs3, 2);
-    mve_pred16_t p_full = vctp8q(16);
-    uint8x16_t vlevel = vdupq_n_u8(level);
-
+    const uint8_t level = corr->black_level.level;
+    const uint8_t *inb_line = src;
+    uint8_t *out_line = dst;
     uint16_t x = 0;
-    for (; x + 16 <= width; x += 16) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
-        const uint8_t *inb = src + (uint32_t)x * 3u;
-        uint8x16_t v;
-        v = vldrbq_gather_offset_z_u8(inb, offR, p_full);
-        v = vqsubq_u8(v, vlevel);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(v), p_full);
-        v = vldrbq_gather_offset_z_u8(inb, offG, p_full);
-        v = vqsubq_u8(v, vlevel);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(v), p_full);
-        v = vldrbq_gather_offset_z_u8(inb, offB, p_full);
-        v = vqsubq_u8(v, vlevel);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(v), p_full);
-    }
-    unsigned rem = (unsigned)width - x;
-    if (rem) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
-        const uint8_t *inb = src + (uint32_t)x * 3u;
-        mve_pred16_t p = mpix_tail_pred_u8(rem);
-        uint8x16_t v;
-        v = vldrbq_gather_offset_z_u8(inb, offR, p);
-        v = vqsubq_u8(v, vdupq_n_u8(level));
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(v), p);
-        v = vldrbq_gather_offset_z_u8(inb, offG, p);
-        v = vqsubq_u8(v, vdupq_n_u8(level));
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(v), p);
-        v = vldrbq_gather_offset_z_u8(inb, offB, p);
-        v = vqsubq_u8(v, vdupq_n_u8(level));
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(v), p);
+    uint8_t rbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t gbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t bbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+
+    while (x < width) {
+        uint16_t blk = (uint16_t)MIN((uint16_t)MPIX_SOA_BLK, (uint16_t)(width - x));
+        const uint8_t *inb = inb_line + (uint32_t)x * 3u;
+        uint8_t *outb = out_line + (uint32_t)x * 3u;
+
+        /* AoS -> SoA */
+        mpix_deint_rgb24_block(inb, blk, rbuf, gbuf, bbuf);
+
+        /* Vector black-level on contiguous buffers */
+        uint16_t done = 0;
+        uint8x16_t vlevel = vdupq_n_u8(level);
+        while (done < blk) {
+            uint16_t step = (uint16_t)MIN(16u, (uint16_t)(blk - done));
+            mve_pred16_t p = vctp8q(step);
+            uint8x16_t r = vld1q_z_u8(rbuf + done, p);
+            uint8x16_t g = vld1q_z_u8(gbuf + done, p);
+            uint8x16_t b = vld1q_z_u8(bbuf + done, p);
+            r = vqsubq_u8(r, vlevel);
+            g = vqsubq_u8(g, vlevel);
+            b = vqsubq_u8(b, vlevel);
+            vst1q_p_u8(rbuf + done, r, p);
+            vst1q_p_u8(gbuf + done, g, p);
+            vst1q_p_u8(bbuf + done, b, p);
+            done += step;
+        }
+
+        /* SoA -> AoS */
+        mpix_reint_rgb24_block(outb, blk, rbuf, gbuf, bbuf);
+
+        x = (uint16_t)(x + blk);
     }
 }
 
@@ -99,30 +176,26 @@ void mpix_correction_black_level_rgb24(const uint8_t *src, uint8_t *dst, uint16_
 
 static inline uint8x16_t mpix_wb_channel_u8(uint8x16_t vin, uint16_t gain_q10)
 {
-    /* widen u8 -> u16 (lo/hi) */
-    uint16x8_t lo16 = vmovlbq_u8(vin);
-    uint16x8_t hi16 = vmovltq_u8(vin);
+    /* u8 -> s16 and pre-shift by 5 so that qrdmulh with Q10 gain matches >>10 */
+    int16x8_t lo = vreinterpretq_s16_u16(vmovlbq_u8(vin));
+    int16x8_t hi = vreinterpretq_s16_u16(vmovltq_u8(vin));
+    lo = vqshlq_n_s16(lo, 5);
+    hi = vqshlq_n_s16(hi, 5);
 
-    /* multiply u16 * u16 -> u32 using vmull{b,t} */
-    uint16x8_t g16 = vdupq_n_u16(gain_q10);
-    uint32x4_t lo32a = vmullbq_int_u16(lo16, g16);
-    uint32x4_t lo32b = vmulltq_int_u16(lo16, g16);
-    uint32x4_t hi32a = vmullbq_int_u16(hi16, g16);
-    uint32x4_t hi32b = vmulltq_int_u16(hi16, g16);
+    /* vqrdmulhq_n_s16 computes round((a*b)/2^15) with doubling, so (val<<5)*gain -> >>15 equals >>10 */
+    int16x8_t lo_scaled = vqrdmulhq_n_s16(lo, (int16_t)gain_q10);
+    int16x8_t hi_scaled = vqrdmulhq_n_s16(hi, (int16_t)gain_q10);
 
-    /* rounding shift and narrow 32->16 in one step */
-    uint16x8_t out16 = vqrshrnbq_n_u32(vdupq_n_u16(0), lo32a, MPIX_CORRECTION_SCALE_BITS);
-    out16 = vqrshrntq_n_u32(out16, lo32b, MPIX_CORRECTION_SCALE_BITS);
-    uint16x8_t out16_hi = vqrshrnbq_n_u32(vdupq_n_u16(0), hi32a, MPIX_CORRECTION_SCALE_BITS);
-    out16_hi = vqrshrntq_n_u32(out16_hi, hi32b, MPIX_CORRECTION_SCALE_BITS);
-
+    /* clamp to [0,255] and pack */
+    int16x8_t zero = vdupq_n_s16(0);
+    lo_scaled = vmaxq_s16(lo_scaled, zero);
+    hi_scaled = vmaxq_s16(hi_scaled, zero);
     const uint16x8_t max255 = vdupq_n_u16(255);
-    out16 = vminq_u16(out16, max255);
-    out16_hi = vminq_u16(out16_hi, max255);
-
+    uint16x8_t ulo = vminq_u16(vreinterpretq_u16_s16(lo_scaled), max255);
+    uint16x8_t uhi = vminq_u16(vreinterpretq_u16_s16(hi_scaled), max255);
     uint8x16_t out8 = vdupq_n_u8(0);
-    out8 = vqmovnbq_u16(out8, out16);
-    out8 = vqmovntq_u16(out8, out16_hi);
+    out8 = vqmovnbq_u16(out8, ulo);
+    out8 = vqmovntq_u16(out8, uhi);
     return out8;
 }
 
@@ -133,55 +206,37 @@ void mpix_correction_white_balance_rgb24(const uint8_t *src, uint8_t *dst, uint1
     const uint16_t red_q10 = corr->white_balance.red_level;
     const uint16_t blue_q10 = corr->white_balance.blue_level;
 
-    uint8x16_t offs3 = mpix_rgb_offsets3();
-    uint8x16_t offR = vaddq_n_u8(offs3, 0);
-    uint8x16_t offG = vaddq_n_u8(offs3, 1);
-    uint8x16_t offB = vaddq_n_u8(offs3, 2);
-    mve_pred16_t p_full = vctp8q(16);
+    uint8_t rbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t gbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t bbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+
     uint16_t x = 0;
-    for (; x + 16 <= width; x += 16) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
+    while (x < width) {
+        uint16_t blk = (uint16_t)MIN((uint16_t)MPIX_SOA_BLK, (uint16_t)(width - x));
         const uint8_t *inb = src + (uint32_t)x * 3u;
-
-        /* R */
-        uint8x16_t r = vldrbq_gather_offset_z_u8(inb, offR, p_full);
-        r = mpix_wb_channel_u8(r, red_q10);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(r), p_full);
-
-        /* G unchanged */
-        uint8x16_t g = vldrbq_gather_offset_z_u8(inb, offG, p_full);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(g), p_full);
-
-        /* B */
-        uint8x16_t b = vldrbq_gather_offset_z_u8(inb, offB, p_full);
-        b = mpix_wb_channel_u8(b, blue_q10);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(b), p_full);
-    }
-    unsigned rem = (unsigned)width - x;
-    if (rem) {
         uint8_t *outb = dst + (uint32_t)x * 3u;
-        const uint8_t *inb = src + (uint32_t)x * 3u;
-        mve_pred16_t p = mpix_tail_pred_u8(rem);
 
-        uint8x16_t offR = vaddq_n_u8(offs3, 0);
-        uint8x16_t r = vldrbq_gather_offset_z_u8(inb, offR, p);
-        r = mpix_wb_channel_u8(r, red_q10);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(r), p);
+        /* AoS -> SoA */
+        mpix_deint_rgb24_block(inb, blk, rbuf, gbuf, bbuf);
 
-        uint8x16_t offG = vaddq_n_u8(offs3, 1);
-        uint8x16_t g = vldrbq_gather_offset_z_u8(inb, offG, p);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(g), p);
+        /* Apply gains on contiguous R/B, G unchanged */
+        uint16_t done = 0;
+        while (done < blk) {
+            uint16_t step = (uint16_t)MIN(16u, (uint16_t)(blk - done));
+            mve_pred16_t p = vctp8q(step);
+            uint8x16_t r = vld1q_z_u8(rbuf + done, p);
+            uint8x16_t b = vld1q_z_u8(bbuf + done, p);
+            r = mpix_wb_channel_u8(r, red_q10);
+            b = mpix_wb_channel_u8(b, blue_q10);
+            vst1q_p_u8(rbuf + done, r, p);
+            vst1q_p_u8(bbuf + done, b, p);
+            /* G remains */
+            done += step;
+        }
 
-        uint8x16_t offB = vaddq_n_u8(offs3, 2);
-        uint8x16_t b = vldrbq_gather_offset_z_u8(inb, offB, p);
-        b = mpix_wb_channel_u8(b, blue_q10);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(b), p);
+        /* SoA -> AoS */
+        mpix_reint_rgb24_block(outb, blk, rbuf, gbuf, bbuf);
+        x = (uint16_t)(x + blk);
     }
 }
 
@@ -278,47 +333,39 @@ void mpix_correction_gamma_rgb24(const uint8_t *src, uint8_t *dst, uint16_t widt
         s_init = 1;
     }
 
-    uint8x16_t offs3 = mpix_rgb_offsets3();
-    uint8x16_t offR = vaddq_n_u8(offs3, 0);
-    uint8x16_t offG = vaddq_n_u8(offs3, 1);
-    uint8x16_t offB = vaddq_n_u8(offs3, 2);
-    mve_pred16_t p_full = vctp8q(16);
+    uint8_t rbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t gbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t bbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+
     uint16_t x = 0;
-    for (; x + 16 <= width; x += 16) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
+    while (x < width) {
+        uint16_t blk = (uint16_t)MIN((uint16_t)MPIX_SOA_BLK, (uint16_t)(width - x));
         const uint8_t *inb = src + (uint32_t)x * 3u;
-        uint8x16_t v;
-        v = vldrbq_gather_offset_z_u8(inb, offR, p_full);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(v), p_full);
-        v = vldrbq_gather_offset_z_u8(inb, offG, p_full);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(v), p_full);
-        v = vldrbq_gather_offset_z_u8(inb, offB, p_full);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(v), p_full);
-    }
-    unsigned rem = (unsigned)width - x;
-    if (rem) {
         uint8_t *outb = dst + (uint32_t)x * 3u;
-        const uint8_t *inb = src + (uint32_t)x * 3u;
-        mve_pred16_t p = mpix_tail_pred_u8(rem);
-        uint8x16_t v;
-        v = vldrbq_gather_offset_z_u8(inb, offR, p);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offR),
-                                   vreinterpretq_s8_u8(v), p);
-        v = vldrbq_gather_offset_z_u8(inb, offG, p);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offG),
-                                   vreinterpretq_s8_u8(v), p);
-        v = vldrbq_gather_offset_z_u8(inb, offB, p);
-        v = vldrbq_gather_offset_u8(s_lut, v);
-        vstrbq_scatter_offset_p_s8((int8_t *)outb, vreinterpretq_s8_u8(offB),
-                                   vreinterpretq_s8_u8(v), p);
+
+        /* AoS -> SoA */
+        mpix_deint_rgb24_block(inb, blk, rbuf, gbuf, bbuf);
+
+        /* LUT on contiguous channels */
+        uint16_t done = 0;
+        while (done < blk) {
+            uint16_t step = (uint16_t)MIN(16u, (uint16_t)(blk - done));
+            mve_pred16_t p = vctp8q(step);
+            uint8x16_t r = vld1q_z_u8(rbuf + done, p);
+            uint8x16_t g = vld1q_z_u8(gbuf + done, p);
+            uint8x16_t b = vld1q_z_u8(bbuf + done, p);
+            r = vldrbq_gather_offset_u8(s_lut, r);
+            g = vldrbq_gather_offset_u8(s_lut, g);
+            b = vldrbq_gather_offset_u8(s_lut, b);
+            vst1q_p_u8(rbuf + done, r, p);
+            vst1q_p_u8(gbuf + done, g, p);
+            vst1q_p_u8(bbuf + done, b, p);
+            done += step;
+        }
+
+        /* SoA -> AoS */
+        mpix_reint_rgb24_block(outb, blk, rbuf, gbuf, bbuf);
+        x = (uint16_t)(x + blk);
     }
 }
 
@@ -360,130 +407,293 @@ void mpix_correction_color_matrix_rgb24(const uint8_t *src, uint8_t *dst, uint16
     (void)line_offset;
     const int16_t *L = corr->color_matrix.levels; /* row-major 3x3 */
 
-    uint8x16_t offs3 = mpix_rgb_offsets3();
+    uint8_t rbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t gbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t bbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+
     uint16_t x = 0;
-    for (; x + 16 <= width; x += 16) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
+    while (x < width) {
+        uint16_t blk = (uint16_t)MIN((uint16_t)MPIX_SOA_BLK, (uint16_t)(width - x));
         const uint8_t *inb = src + (uint32_t)x * 3u;
-        mve_pred16_t p = vctp8q(16);
+        uint8_t *outb = dst + (uint32_t)x * 3u;
 
-        /* load channels */
-        uint8x16_t r8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 0), p);
-        uint8x16_t g8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 1), p);
-        uint8x16_t b8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 2), p);
+        /* AoS -> SoA */
+        mpix_deint_rgb24_block(inb, blk, rbuf, gbuf, bbuf);
 
-        /* widen to s16 */
-        int16x8_t r16_lo = vreinterpretq_s16_u16(vmovlbq_u8(r8));
-        int16x8_t r16_hi = vreinterpretq_s16_u16(vmovltq_u8(r8));
-        int16x8_t g16_lo = vreinterpretq_s16_u16(vmovlbq_u8(g8));
-        int16x8_t g16_hi = vreinterpretq_s16_u16(vmovltq_u8(g8));
-        int16x8_t b16_lo = vreinterpretq_s16_u16(vmovlbq_u8(b8));
-        int16x8_t b16_hi = vreinterpretq_s16_u16(vmovltq_u8(b8));
+    /* Process contiguous channels in blocks of 16 */
+        uint16_t done = 0;
+        while (done < blk) {
+            uint16_t step = (uint16_t)MIN(16u, (uint16_t)(blk - done));
+            mve_pred16_t p = vctp8q(step);
 
-        /* output R' = R*l0 + G*l1 + B*l2 using vmull{b,t} (s16*s16 -> s32) */
-        int16_t l0 = L[0], l1 = L[1], l2 = L[2];
-        int16x8_t L0v = vdupq_n_s16(l0);
-        int16x8_t L1v = vdupq_n_s16(l1);
-        int16x8_t L2v = vdupq_n_s16(l2);
-        int32x4_t rr_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L0v),
-                                     vaddq_s32(vmullbq_int_s16(g16_lo, L1v), vmullbq_int_s16(b16_lo, L2v)));
-        int32x4_t rr_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L0v),
-                                     vaddq_s32(vmulltq_int_s16(g16_lo, L1v), vmulltq_int_s16(b16_lo, L2v)));
-        int32x4_t rr_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L0v),
-                                     vaddq_s32(vmullbq_int_s16(g16_hi, L1v), vmullbq_int_s16(b16_hi, L2v)));
-        int32x4_t rr_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L0v),
-                                     vaddq_s32(vmulltq_int_s16(g16_hi, L1v), vmulltq_int_s16(b16_hi, L2v)));
+            uint8x16_t r8 = vld1q_z_u8(rbuf + done, p);
+            uint8x16_t g8 = vld1q_z_u8(gbuf + done, p);
+            uint8x16_t b8 = vld1q_z_u8(bbuf + done, p);
 
-        mpix_ccm_pack_and_store(outb, offs3, 0, rr_ll, rr_lh, rr_hl, rr_hh, p);
+            /* widen to s16 */
+            int16x8_t r16_lo = vreinterpretq_s16_u16(vmovlbq_u8(r8));
+            int16x8_t r16_hi = vreinterpretq_s16_u16(vmovltq_u8(r8));
+            int16x8_t g16_lo = vreinterpretq_s16_u16(vmovlbq_u8(g8));
+            int16x8_t g16_hi = vreinterpretq_s16_u16(vmovltq_u8(g8));
+            int16x8_t b16_lo = vreinterpretq_s16_u16(vmovlbq_u8(b8));
+            int16x8_t b16_hi = vreinterpretq_s16_u16(vmovltq_u8(b8));
 
-        /* output G' = R*l3 + G*l4 + B*l5 */
-        int16_t l3 = L[3], l4 = L[4], l5 = L[5];
-        int16x8_t L3v = vdupq_n_s16(l3);
-        int16x8_t L4v = vdupq_n_s16(l4);
-        int16x8_t L5v = vdupq_n_s16(l5);
-        int32x4_t gg_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L3v),
-                                     vaddq_s32(vmullbq_int_s16(g16_lo, L4v), vmullbq_int_s16(b16_lo, L5v)));
-        int32x4_t gg_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L3v),
-                                     vaddq_s32(vmulltq_int_s16(g16_lo, L4v), vmulltq_int_s16(b16_lo, L5v)));
-        int32x4_t gg_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L3v),
-                                     vaddq_s32(vmullbq_int_s16(g16_hi, L4v), vmullbq_int_s16(b16_hi, L5v)));
-        int32x4_t gg_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L3v),
-                                     vaddq_s32(vmulltq_int_s16(g16_hi, L4v), vmulltq_int_s16(b16_hi, L5v)));
+            /* R' */
+            int16x8_t L0v = vdupq_n_s16(L[0]);
+            int16x8_t L1v = vdupq_n_s16(L[1]);
+            int16x8_t L2v = vdupq_n_s16(L[2]);
+            int32x4_t rr_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L0v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L1v), vmullbq_int_s16(b16_lo, L2v)));
+            int32x4_t rr_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L0v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L1v), vmulltq_int_s16(b16_lo, L2v)));
+            int32x4_t rr_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L0v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L1v), vmullbq_int_s16(b16_hi, L2v)));
+            int32x4_t rr_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L0v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L1v), vmulltq_int_s16(b16_hi, L2v)));
 
-        mpix_ccm_pack_and_store(outb, offs3, 1, gg_ll, gg_lh, gg_hl, gg_hh, p);
+            /* pack & clamp */
+            int16x8_t zero = vdupq_n_s16(0);
+            int16x8_t v16lo = vqrshrnbq_n_s32(vdupq_n_s16(0), rr_ll, MPIX_CORRECTION_SCALE_BITS);
+            v16lo = vqrshrntq_n_s32(v16lo, rr_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t v16hi = vqrshrnbq_n_s32(vdupq_n_s16(0), rr_hl, MPIX_CORRECTION_SCALE_BITS);
+            v16hi = vqrshrntq_n_s32(v16hi, rr_hh, MPIX_CORRECTION_SCALE_BITS);
+            v16lo = vmaxq_s16(v16lo, zero);
+            v16hi = vmaxq_s16(v16hi, zero);
+            uint16x8_t u16lo = vreinterpretq_u16_s16(v16lo);
+            uint16x8_t u16hi = vreinterpretq_u16_s16(v16hi);
+            const uint16x8_t max255 = vdupq_n_u16(255);
+            u16lo = vminq_u16(u16lo, max255);
+            u16hi = vminq_u16(u16hi, max255);
+            uint8x16_t rout = vdupq_n_u8(0);
+            rout = vqmovnbq_u16(rout, u16lo);
+            rout = vqmovntq_u16(rout, u16hi);
+            vst1q_p_u8(rbuf + done, rout, p);
 
-        /* output B' = R*l6 + G*l7 + B*l8 */
-        int16_t l6 = L[6], l7 = L[7], l8 = L[8];
-        int16x8_t L6v = vdupq_n_s16(l6);
-        int16x8_t L7v = vdupq_n_s16(l7);
-        int16x8_t L8v = vdupq_n_s16(l8);
-        int32x4_t bb_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L6v),
-                                     vaddq_s32(vmullbq_int_s16(g16_lo, L7v), vmullbq_int_s16(b16_lo, L8v)));
-        int32x4_t bb_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L6v),
-                                     vaddq_s32(vmulltq_int_s16(g16_lo, L7v), vmulltq_int_s16(b16_lo, L8v)));
-        int32x4_t bb_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L6v),
-                                     vaddq_s32(vmullbq_int_s16(g16_hi, L7v), vmullbq_int_s16(b16_hi, L8v)));
-        int32x4_t bb_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L6v),
-                                     vaddq_s32(vmulltq_int_s16(g16_hi, L7v), vmulltq_int_s16(b16_hi, L8v)));
+            /* G' */
+            int16x8_t L3v = vdupq_n_s16(L[3]);
+            int16x8_t L4v = vdupq_n_s16(L[4]);
+            int16x8_t L5v = vdupq_n_s16(L[5]);
+            int32x4_t gg_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L3v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L4v), vmullbq_int_s16(b16_lo, L5v)));
+            int32x4_t gg_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L3v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L4v), vmulltq_int_s16(b16_lo, L5v)));
+            int32x4_t gg_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L3v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L4v), vmullbq_int_s16(b16_hi, L5v)));
+            int32x4_t gg_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L3v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L4v), vmulltq_int_s16(b16_hi, L5v)));
+            int16x8_t g16o = vqrshrnbq_n_s32(vdupq_n_s16(0), gg_ll, MPIX_CORRECTION_SCALE_BITS);
+            g16o = vqrshrntq_n_s32(g16o, gg_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t g16o_hi = vqrshrnbq_n_s32(vdupq_n_s16(0), gg_hl, MPIX_CORRECTION_SCALE_BITS);
+            g16o_hi = vqrshrntq_n_s32(g16o_hi, gg_hh, MPIX_CORRECTION_SCALE_BITS);
+            g16o = vmaxq_s16(g16o, zero);
+            g16o_hi = vmaxq_s16(g16o_hi, zero);
+            uint16x8_t g16u = vminq_u16(vreinterpretq_u16_s16(g16o), max255);
+            uint16x8_t g16u_hi = vminq_u16(vreinterpretq_u16_s16(g16o_hi), max255);
+            uint8x16_t gout = vdupq_n_u8(0);
+            gout = vqmovnbq_u16(gout, g16u);
+            gout = vqmovntq_u16(gout, g16u_hi);
+            vst1q_p_u8(gbuf + done, gout, p);
 
-        mpix_ccm_pack_and_store(outb, offs3, 2, bb_ll, bb_lh, bb_hl, bb_hh, p);
+            /* B' */
+            int16x8_t L6v = vdupq_n_s16(L[6]);
+            int16x8_t L7v = vdupq_n_s16(L[7]);
+            int16x8_t L8v = vdupq_n_s16(L[8]);
+            int32x4_t bb_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L6v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L7v), vmullbq_int_s16(b16_lo, L8v)));
+            int32x4_t bb_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L6v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L7v), vmulltq_int_s16(b16_lo, L8v)));
+            int32x4_t bb_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L6v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L7v), vmullbq_int_s16(b16_hi, L8v)));
+            int32x4_t bb_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L6v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L7v), vmulltq_int_s16(b16_hi, L8v)));
+            int16x8_t b16o = vqrshrnbq_n_s32(vdupq_n_s16(0), bb_ll, MPIX_CORRECTION_SCALE_BITS);
+            b16o = vqrshrntq_n_s32(b16o, bb_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t b16o_hi = vqrshrnbq_n_s32(vdupq_n_s16(0), bb_hl, MPIX_CORRECTION_SCALE_BITS);
+            b16o_hi = vqrshrntq_n_s32(b16o_hi, bb_hh, MPIX_CORRECTION_SCALE_BITS);
+            b16o = vmaxq_s16(b16o, zero);
+            b16o_hi = vmaxq_s16(b16o_hi, zero);
+            uint16x8_t b16u = vminq_u16(vreinterpretq_u16_s16(b16o), max255);
+            uint16x8_t b16u_hi = vminq_u16(vreinterpretq_u16_s16(b16o_hi), max255);
+            uint8x16_t bout = vdupq_n_u8(0);
+            bout = vqmovnbq_u16(bout, b16u);
+            bout = vqmovntq_u16(bout, b16u_hi);
+            vst1q_p_u8(bbuf + done, bout, p);
+
+            done += step;
+        }
+
+        /* SoA -> AoS */
+        mpix_reint_rgb24_block(outb, blk, rbuf, gbuf, bbuf);
+        x = (uint16_t)(x + blk);
+    }
+}
+
+/* -------------------- Fused one-pass: BLC -> WB -> CCM -> Gamma -------------------- */
+
+void mpix_correction_fused_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
+                                 uint16_t line_offset, const struct mpix_correction_all *corr)
+{
+    (void)line_offset;
+    const uint8_t blc = corr->black_level.level;
+    const uint16_t wr_q10 = corr->white_balance.red_level;
+    const uint16_t wb_q10 = corr->white_balance.blue_level;
+    const int16_t *M = corr->color_matrix.levels; /* Q10 */
+
+    /* Build gamma LUT once per call (level in corr->gamma.level uses same scheme as others) */
+    const uint8_t level = corr->gamma.level >> 5;
+    static uint8_t s_lut[256];
+    static uint8_t s_level;
+    static uint8_t s_init;
+    if (!s_init || s_level != level) {
+        mpix_build_gamma_lut(s_lut, level);
+        s_level = level;
+        s_init = 1;
     }
 
-    unsigned rem = (unsigned)width - x;
-    if (rem) {
-        uint8_t *outb = dst + (uint32_t)x * 3u;
+    /* Pre-fold WB into CCM columns to save一阶段 */
+    int16_t Mc[9];
+    /* 乘以 Q10，保持 Q10 精度：后续仍按 >>10 收敛 */
+    for (int r = 0; r < 3; ++r) {
+        int32_t c0 = (int32_t)M[r * 3 + 0] * wr_q10; /* R 列 */
+        int32_t c1 = (int32_t)M[r * 3 + 1] * (1 << MPIX_CORRECTION_SCALE_BITS); /* G 列 */
+        int32_t c2 = (int32_t)M[r * 3 + 2] * wb_q10; /* B 列 */
+        /* 现在三列都是 Q20，需要在使用前统一右移 10 到 Q10。
+         * 为避免精度抖动，这里先四舍五入到 Q10，再截断到 int16 */
+        c0 = (c0 + (1 << (MPIX_CORRECTION_SCALE_BITS - 1))) >> MPIX_CORRECTION_SCALE_BITS;
+        c1 = (c1 + (1 << (MPIX_CORRECTION_SCALE_BITS - 1))) >> MPIX_CORRECTION_SCALE_BITS;
+        c2 = (c2 + (1 << (MPIX_CORRECTION_SCALE_BITS - 1))) >> MPIX_CORRECTION_SCALE_BITS;
+        if (c0 > 32767) c0 = 32767; if (c0 < -32768) c0 = -32768;
+        if (c1 > 32767) c1 = 32767; if (c1 < -32768) c1 = -32768;
+        if (c2 > 32767) c2 = 32767; if (c2 < -32768) c2 = -32768;
+        Mc[r * 3 + 0] = (int16_t)c0;
+        Mc[r * 3 + 1] = (int16_t)c1;
+        Mc[r * 3 + 2] = (int16_t)c2;
+    }
+
+    uint8_t rbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t gbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+    uint8_t bbuf[MPIX_SOA_BLK] MPIX_ALIGNED16;
+
+    uint16_t x = 0;
+    while (x < width) {
+        uint16_t blk = (uint16_t)MIN((uint16_t)MPIX_SOA_BLK, (uint16_t)(width - x));
         const uint8_t *inb = src + (uint32_t)x * 3u;
-        mve_pred16_t p = mpix_tail_pred_u8(rem);
+        uint8_t *outb = dst + (uint32_t)x * 3u;
 
-        uint8x16_t r8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 0), p);
-        uint8x16_t g8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 1), p);
-        uint8x16_t b8 = vldrbq_gather_offset_z_u8(inb, vaddq_n_u8(offs3, 2), p);
+        /* AoS -> SoA */
+        mpix_deint_rgb24_block(inb, blk, rbuf, gbuf, bbuf);
 
-        int16x8_t r16_lo = vreinterpretq_s16_u16(vmovlbq_u8(r8));
-        int16x8_t r16_hi = vreinterpretq_s16_u16(vmovltq_u8(r8));
-        int16x8_t g16_lo = vreinterpretq_s16_u16(vmovlbq_u8(g8));
-        int16x8_t g16_hi = vreinterpretq_s16_u16(vmovltq_u8(g8));
-        int16x8_t b16_lo = vreinterpretq_s16_u16(vmovlbq_u8(b8));
-        int16x8_t b16_hi = vreinterpretq_s16_u16(vmovltq_u8(b8));
+        /* 在 SoA 上进行：BLC -> CCM(Mc) -> Gamma；WB 已折叠入矩阵，G 通道等效 1x  */
+        uint16_t done = 0;
+        uint8x16_t vbl = vdupq_n_u8(blc);
+        const uint16x8_t max255 = vdupq_n_u16(255);
+        while (done < blk) {
+            uint16_t vec = (uint16_t)MIN(16u, (uint16_t)(blk - done));
+            mve_pred16_t p = vctp8q(vec);
+            /* Load & black level */
+            uint8x16_t r8 = vld1q_z_u8(rbuf + done, p);
+            uint8x16_t g8 = vld1q_z_u8(gbuf + done, p);
+            uint8x16_t b8 = vld1q_z_u8(bbuf + done, p);
+            r8 = vqsubq_u8(r8, vbl);
+            g8 = vqsubq_u8(g8, vbl);
+            b8 = vqsubq_u8(b8, vbl);
 
-    int16_t l0 = L[0], l1 = L[1], l2 = L[2];
-    int16x8_t L0v = vdupq_n_s16(l0);
-    int16x8_t L1v = vdupq_n_s16(l1);
-    int16x8_t L2v = vdupq_n_s16(l2);
-    int32x4_t rr_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L0v),
-                     vaddq_s32(vmullbq_int_s16(g16_lo, L1v), vmullbq_int_s16(b16_lo, L2v)));
-    int32x4_t rr_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L0v),
-                     vaddq_s32(vmulltq_int_s16(g16_lo, L1v), vmulltq_int_s16(b16_lo, L2v)));
-    int32x4_t rr_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L0v),
-                     vaddq_s32(vmullbq_int_s16(g16_hi, L1v), vmullbq_int_s16(b16_hi, L2v)));
-    int32x4_t rr_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L0v),
-                     vaddq_s32(vmulltq_int_s16(g16_hi, L1v), vmulltq_int_s16(b16_hi, L2v)));
-        mpix_ccm_pack_and_store(outb, offs3, 0, rr_ll, rr_lh, rr_hl, rr_hh, p);
-    int16_t l3 = L[3], l4 = L[4], l5 = L[5];
-    int16x8_t L3v = vdupq_n_s16(l3);
-    int16x8_t L4v = vdupq_n_s16(l4);
-    int16x8_t L5v = vdupq_n_s16(l5);
-    int32x4_t gg_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L3v),
-                     vaddq_s32(vmullbq_int_s16(g16_lo, L4v), vmullbq_int_s16(b16_lo, L5v)));
-    int32x4_t gg_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L3v),
-                     vaddq_s32(vmulltq_int_s16(g16_lo, L4v), vmulltq_int_s16(b16_lo, L5v)));
-    int32x4_t gg_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L3v),
-                     vaddq_s32(vmullbq_int_s16(g16_hi, L4v), vmullbq_int_s16(b16_hi, L5v)));
-    int32x4_t gg_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L3v),
-                     vaddq_s32(vmulltq_int_s16(g16_hi, L4v), vmulltq_int_s16(b16_hi, L5v)));
-        mpix_ccm_pack_and_store(outb, offs3, 1, gg_ll, gg_lh, gg_hl, gg_hh, p);
-    int16_t l6 = L[6], l7 = L[7], l8 = L[8];
-    int16x8_t L6v = vdupq_n_s16(l6);
-    int16x8_t L7v = vdupq_n_s16(l7);
-    int16x8_t L8v = vdupq_n_s16(l8);
-    int32x4_t bb_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L6v),
-                     vaddq_s32(vmullbq_int_s16(g16_lo, L7v), vmullbq_int_s16(b16_lo, L8v)));
-    int32x4_t bb_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L6v),
-                     vaddq_s32(vmulltq_int_s16(g16_lo, L7v), vmulltq_int_s16(b16_lo, L8v)));
-    int32x4_t bb_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L6v),
-                     vaddq_s32(vmullbq_int_s16(g16_hi, L7v), vmullbq_int_s16(b16_hi, L8v)));
-    int32x4_t bb_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L6v),
-                     vaddq_s32(vmulltq_int_s16(g16_hi, L7v), vmulltq_int_s16(b16_hi, L8v)));
-        mpix_ccm_pack_and_store(outb, offs3, 2, bb_ll, bb_lh, bb_hl, bb_hh, p);
+            /* widen to s16 */
+            int16x8_t r16_lo = vreinterpretq_s16_u16(vmovlbq_u8(r8));
+            int16x8_t r16_hi = vreinterpretq_s16_u16(vmovltq_u8(r8));
+            int16x8_t g16_lo = vreinterpretq_s16_u16(vmovlbq_u8(g8));
+            int16x8_t g16_hi = vreinterpretq_s16_u16(vmovltq_u8(g8));
+            int16x8_t b16_lo = vreinterpretq_s16_u16(vmovlbq_u8(b8));
+            int16x8_t b16_hi = vreinterpretq_s16_u16(vmovltq_u8(b8));
+
+            /* CCM with Mc (Q10) */
+            int16x8_t L0v = vdupq_n_s16(Mc[0]);
+            int16x8_t L1v = vdupq_n_s16(Mc[1]);
+            int16x8_t L2v = vdupq_n_s16(Mc[2]);
+            int32x4_t rr_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L0v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L1v), vmullbq_int_s16(b16_lo, L2v)));
+            int32x4_t rr_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L0v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L1v), vmulltq_int_s16(b16_lo, L2v)));
+            int32x4_t rr_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L0v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L1v), vmullbq_int_s16(b16_hi, L2v)));
+            int32x4_t rr_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L0v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L1v), vmulltq_int_s16(b16_hi, L2v)));
+
+            int16x8_t v16lo = vqrshrnbq_n_s32(vdupq_n_s16(0), rr_ll, MPIX_CORRECTION_SCALE_BITS);
+            v16lo = vqrshrntq_n_s32(v16lo, rr_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t v16hi = vqrshrnbq_n_s32(vdupq_n_s16(0), rr_hl, MPIX_CORRECTION_SCALE_BITS);
+            v16hi = vqrshrntq_n_s32(v16hi, rr_hh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t zero = vdupq_n_s16(0);
+            v16lo = vmaxq_s16(v16lo, zero);
+            v16hi = vmaxq_s16(v16hi, zero);
+            uint16x8_t u16lo = vminq_u16(vreinterpretq_u16_s16(v16lo), max255);
+            uint16x8_t u16hi = vminq_u16(vreinterpretq_u16_s16(v16hi), max255);
+            uint8x16_t rout = vdupq_n_u8(0);
+            rout = vqmovnbq_u16(rout, u16lo);
+            rout = vqmovntq_u16(rout, u16hi);
+
+            /* G' */
+            int16x8_t L3v = vdupq_n_s16(Mc[3]);
+            int16x8_t L4v = vdupq_n_s16(Mc[4]);
+            int16x8_t L5v = vdupq_n_s16(Mc[5]);
+            int32x4_t gg_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L3v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L4v), vmullbq_int_s16(b16_lo, L5v)));
+            int32x4_t gg_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L3v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L4v), vmulltq_int_s16(b16_lo, L5v)));
+            int32x4_t gg_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L3v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L4v), vmullbq_int_s16(b16_hi, L5v)));
+            int32x4_t gg_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L3v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L4v), vmulltq_int_s16(b16_hi, L5v)));
+            int16x8_t g16o = vqrshrnbq_n_s32(vdupq_n_s16(0), gg_ll, MPIX_CORRECTION_SCALE_BITS);
+            g16o = vqrshrntq_n_s32(g16o, gg_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t g16o_hi = vqrshrnbq_n_s32(vdupq_n_s16(0), gg_hl, MPIX_CORRECTION_SCALE_BITS);
+            g16o_hi = vqrshrntq_n_s32(g16o_hi, gg_hh, MPIX_CORRECTION_SCALE_BITS);
+            g16o = vmaxq_s16(g16o, zero);
+            g16o_hi = vmaxq_s16(g16o_hi, zero);
+            uint16x8_t g16u = vminq_u16(vreinterpretq_u16_s16(g16o), max255);
+            uint16x8_t g16u_hi = vminq_u16(vreinterpretq_u16_s16(g16o_hi), max255);
+            uint8x16_t gout = vdupq_n_u8(0);
+            gout = vqmovnbq_u16(gout, g16u);
+            gout = vqmovntq_u16(gout, g16u_hi);
+
+            /* B' */
+            int16x8_t L6v = vdupq_n_s16(Mc[6]);
+            int16x8_t L7v = vdupq_n_s16(Mc[7]);
+            int16x8_t L8v = vdupq_n_s16(Mc[8]);
+            int32x4_t bb_ll = vaddq_s32(vmullbq_int_s16(r16_lo, L6v),
+                                         vaddq_s32(vmullbq_int_s16(g16_lo, L7v), vmullbq_int_s16(b16_lo, L8v)));
+            int32x4_t bb_lh = vaddq_s32(vmulltq_int_s16(r16_lo, L6v),
+                                         vaddq_s32(vmulltq_int_s16(g16_lo, L7v), vmulltq_int_s16(b16_lo, L8v)));
+            int32x4_t bb_hl = vaddq_s32(vmullbq_int_s16(r16_hi, L6v),
+                                         vaddq_s32(vmullbq_int_s16(g16_hi, L7v), vmullbq_int_s16(b16_hi, L8v)));
+            int32x4_t bb_hh = vaddq_s32(vmulltq_int_s16(r16_hi, L6v),
+                                         vaddq_s32(vmulltq_int_s16(g16_hi, L7v), vmulltq_int_s16(b16_hi, L8v)));
+            int16x8_t b16o = vqrshrnbq_n_s32(vdupq_n_s16(0), bb_ll, MPIX_CORRECTION_SCALE_BITS);
+            b16o = vqrshrntq_n_s32(b16o, bb_lh, MPIX_CORRECTION_SCALE_BITS);
+            int16x8_t b16o_hi = vqrshrnbq_n_s32(vdupq_n_s16(0), bb_hl, MPIX_CORRECTION_SCALE_BITS);
+            b16o_hi = vqrshrntq_n_s32(b16o_hi, bb_hh, MPIX_CORRECTION_SCALE_BITS);
+            b16o = vmaxq_s16(b16o, zero);
+            b16o_hi = vmaxq_s16(b16o_hi, zero);
+            uint16x8_t b16u = vminq_u16(vreinterpretq_u16_s16(b16o), max255);
+            uint16x8_t b16u_hi = vminq_u16(vreinterpretq_u16_s16(b16o_hi), max255);
+            uint8x16_t bout = vdupq_n_u8(0);
+            bout = vqmovnbq_u16(bout, b16u);
+            bout = vqmovntq_u16(bout, b16u_hi);
+
+            /* Gamma LUT （u8->u8）*/
+            rout = vldrbq_gather_offset_u8(s_lut, rout);
+            gout = vldrbq_gather_offset_u8(s_lut, gout);
+            bout = vldrbq_gather_offset_u8(s_lut, bout);
+
+            /* store back to SoA buffers */
+            vst1q_p_u8(rbuf + done, rout, p);
+            vst1q_p_u8(gbuf + done, gout, p);
+            vst1q_p_u8(bbuf + done, bout, p);
+            done = (uint16_t)(done + vec);
+        }
+
+        /* SoA -> AoS */
+        mpix_reint_rgb24_block(outb, blk, rbuf, gbuf, bbuf);
+        x = (uint16_t)(x + blk);
     }
 }
