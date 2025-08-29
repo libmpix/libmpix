@@ -7,6 +7,10 @@
 
 uint8_t src[WIDTH * HEIGHT * 3];
 uint8_t dst[WIDTH * HEIGHT * 3];
+static uint8_t tmp1[WIDTH * HEIGHT * 3];
+static uint8_t tmp2[WIDTH * HEIGHT * 3];
+static uint8_t tmp3[WIDTH * HEIGHT * 3];
+static uint8_t dst_fused[WIDTH * HEIGHT * 3];
 
 void test_some_matrix(void)
 {
@@ -254,8 +258,59 @@ void test_extract_blue_matrix(void)
 	mpix_test_equal(dst[2], src[2]);
 }
 
+/* Verify fused one-pass correction equals the sequential pipeline:
+ * black-level -> white-balance -> color-matrix -> gamma
+ */
+void test_fused_pipeline(void)
+{
+	/* Compose a moderate, non-trivial configuration */
+	struct mpix_correction_all all = {
+		.white_balance = {
+			.red_level = (uint16_t)(1.25 * (1 << MPIX_CORRECTION_SCALE_BITS)),   /* ~1280 */
+			.blue_level = (uint16_t)(0.75 * (1 << MPIX_CORRECTION_SCALE_BITS)),  /* ~768 */
+		},
+		.color_matrix = {
+			/* Identity matrix in Q10 */
+			.levels = {
+				1.0 * (1 << MPIX_CORRECTION_SCALE_BITS), 0.0, 0.0,
+				0.0, 1.0 * (1 << MPIX_CORRECTION_SCALE_BITS), 0.0,
+				0.0, 0.0, 1.0 * (1 << MPIX_CORRECTION_SCALE_BITS),
+			},
+		},
+		.gamma = {
+			.level = 8, /* mid strength */
+		},
+		.black_level = {
+			.level = 16,
+		},
+	};
+
+	/* Run sequential reference */
+	union mpix_correction_any bl = { .black_level.level = all.black_level.level };
+	union mpix_correction_any wb; wb.white_balance.red_level = all.white_balance.red_level; wb.white_balance.blue_level = all.white_balance.blue_level;
+	union mpix_correction_any cm; for (int i = 0; i < 9; ++i) cm.color_matrix.levels[i] = all.color_matrix.levels[i];
+	union mpix_correction_any gm = { .gamma.level = all.gamma.level };
+
+	uint16_t width = WIDTH * HEIGHT;
+	mpix_correction_black_level_rgb24(src, tmp1, width, 0, &bl);
+	mpix_correction_white_balance_rgb24(tmp1, tmp2, width, 0, &wb);
+	mpix_correction_color_matrix_rgb24(tmp2, tmp3, width, 0, &cm);
+	mpix_correction_gamma_rgb24(tmp3, dst, width, 0, &gm);
+
+	/* Run fused */
+	mpix_correction_fused_rgb24(src, dst_fused, width, 0, &all);
+
+	/* Compare all bytes */
+	for (size_t i = 0; i < (size_t)WIDTH * HEIGHT * 3; ++i) {
+		if (dst_fused[i] != dst[i]) {
+			mpix_test_equal(dst_fused[i], dst[i]);
+		}
+	}
+}
+
 int main(void)
 {
+	printf("Testing MPiX correction functions...\n");
 	/* Generate test input data */
 	for (uint16_t h = 0; h < HEIGHT; h++) {
 		for (uint16_t w = 0; w < WIDTH; w++) {
@@ -275,5 +330,9 @@ int main(void)
 	test_extract_green_matrix();
 	test_extract_blue_matrix();
 
+	/* New: fused one-pass vs sequential reference */
+	test_fused_pipeline();
+
+	printf("All tests passed!\n");
 	return 0;
 }
