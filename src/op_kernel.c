@@ -329,6 +329,23 @@ void mpix_edgedetect_rgb24_3x3(const uint8_t *in[3], uint8_t *out, uint16_t widt
 }
 MPIX_REGISTER_KERNEL_3X3_OP(edge_detect_rgb24, mpix_edgedetect_rgb24_3x3, EDGE_DETECT, RGB24);
 
+/* 5x5 edge detect (Laplacian-style): center +24, all 24 neighbors -1, no shift */
+static const int16_t mpix_edgedetect_5x5[] = {
+	-1, -1, -1, -1, -1,
+	-1, -1, -1, -1, -1,
+	-1, -1, 24, -1, -1,
+	-1, -1, -1, -1, -1,
+	-1, -1, -1, -1, -1, 0
+};
+
+__attribute__((weak))
+void mpix_edgedetect_rgb24_5x5(const uint8_t *in[5], uint8_t *out, uint16_t width)
+{
+	mpix_kernel_5x5(in, out, width, mpix_kernel_rgb24_5x5, mpix_convolve_5x5,
+			mpix_edgedetect_5x5);
+}
+MPIX_REGISTER_KERNEL_5X5_OP(edge_detect_rgb24, mpix_edgedetect_rgb24_5x5, EDGE_DETECT, RGB24);
+
 static const int16_t mpix_gaussianblur_3x3[] = {
 	1, 2, 1,
 	2, 4, 2,
