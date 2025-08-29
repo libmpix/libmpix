@@ -1,4 +1,12 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
+ * Copyright (c) 2025 Brilliant Labs Ltd.
+ * Copyright (c) 2025 tinyVision.ai Inc.
+ * Portions based on JPEGENC by Larry Bank,
+ * Copyright (c) 2021 BitBank Software, Inc.
+ */
+
+ /*
  * Helium-optimized JPEG encoder core
  *
  * This file preserves the exact C API of JPEGENC.c while selectively
