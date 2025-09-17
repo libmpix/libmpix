@@ -19,7 +19,7 @@
 #define JPEGENC_SUBSAMPLE JPEGE_SUBSAMPLE_444
 
 // TODO: Ctrl for this
-#define JPEGENC_Q JPEGE_Q_MED
+#define JPEGENC_Q JPEGE_Q_BEST
 
 #include "JPEGENC.h"
 

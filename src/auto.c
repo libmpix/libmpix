@@ -62,11 +62,11 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 			/* Over-exposed: reduce */
 			val = val * (100 - dyn_rate) / 100;
 			if (val < 1) val = 1;
-			MPIX_INF("AE over exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+			MPIX_DBG("AE over exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
 		} else {
 			/* Under-exposed: increase */
 			val = val * (100 + dyn_rate) / 100;
-			MPIX_INF("AE under exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+			MPIX_DBG("AE under exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
 		}
 	}
 
