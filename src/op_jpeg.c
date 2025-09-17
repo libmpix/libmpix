@@ -55,8 +55,7 @@ int init_jpeg(struct mpix_jpeg_op *op, uint8_t *buffer, size_t size)
 	return 0;
 }
 
-__attribute__((weak))
-void mpix_jpeg_encode_op(struct mpix_base_op *base)
+__attribute__((weak)) void mpix_jpeg_encode_op(struct mpix_base_op *base)
 {
 	struct mpix_jpeg_op *op = (void *)base;
 	size_t bytespp = mpix_bits_per_pixel(base->fourcc_src) / 8;
@@ -76,19 +75,21 @@ void mpix_jpeg_encode_op(struct mpix_base_op *base)
 	src = mpix_op_get_input_lines(base, 8);
 	for (int i = 0; i < base->width; i += op->encoder.cx) {
 		/* Discards const, JPEGENC doesnt actually write to it */
-		ret = JPEGAddMCU(&op->image, &op->encoder, (uint8_t*)&(src[i*bytespp]), pitch);
+		ret = JPEGAddMCU(&op->image, &op->encoder, (uint8_t *)&(src[i * bytespp]), pitch);
 		if (ret != JPEGE_SUCCESS) {
 			MPIX_ERR("Failed to add an image block at column %u", i);
 			return;
 		}
 	}
 
+	mpix_op_done(base);
+
 	if (base->line_offset == base->height) {
-		MPIX_INF("JPEG frame conversion complete");
 		JPEGEncodeEnd(&op->image);
 
 		/* Set the number of bytes read from the output buffer */
 		mpix_op_get_output_bytes(base, op->image.iDataSize);
+		mpix_op_done(base);
 	}
 }
 MPIX_REGISTER_JPEG_OP(enc_rgb565, mpix_jpeg_encode_op, RGB565, JPEG);
