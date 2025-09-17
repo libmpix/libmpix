@@ -24,6 +24,8 @@ struct mpix_auto_ctrls {
 	int32_t exposure_level;
 	/** Maximum sensor exposure value */
 	int32_t exposure_max;
+	/** Target luma (0-255) for AE */
+	uint8_t ae_target;
 	/** The correction levels */
 	struct mpix_correction_all correction;
 };
@@ -60,5 +62,6 @@ void mpix_auto_black_level(struct mpix_auto_ctrls *ctrls, struct mpix_stats *sta
  * @param stats The statistics used to control the white balance and then updated.
  */
 void mpix_auto_white_balance(struct mpix_auto_ctrls *ctrls, struct mpix_stats *stats);
+
 
 #endif /** @} */

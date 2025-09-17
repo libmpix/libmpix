@@ -40,7 +40,7 @@ struct mpix_correction_color_matrix {
  */
 struct mpix_correction_gamma {
 	/** Min value 1 for gamma=1/16. Max value 15  for gamma=15/16. */
-	uint8_t level;
+	uint16_t level;
 };
 
 /**

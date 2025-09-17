@@ -13,6 +13,10 @@ int mpix_auto_exposure_init(struct mpix_auto_ctrls *ctrls, void *dev)
 	int ret;
 
 	ctrls->dev = dev;
+	/* Initialize default AE target if not set */
+	if (ctrls->ae_target == 0) {
+		ctrls->ae_target = 128; /* Mid-gray default */
+	}
 
 	ret = mpix_port_init_exposure(dev, &ctrls->exposure_level, &ctrls->exposure_max);
 	if (ret < 0) {
@@ -33,17 +37,37 @@ int mpix_auto_exposure_init(struct mpix_auto_ctrls *ctrls, void *dev)
 #define CONFIG_MPIX_AEC_CHANGE_RATE 30
 #endif
 
+/* Minimum percentage change when adjusting exposure (for stability near target) */
+#ifndef CONFIG_MPIX_AEC_MIN_CHANGE_RATE
+#define CONFIG_MPIX_AEC_MIN_CHANGE_RATE 2
+#endif
+
 void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats *stats)
 {
 	uint8_t mean = mpix_stats_get_y_mean(stats);
 	int32_t val = ctrls->exposure_level;
+	uint8_t target = ctrls->ae_target ? ctrls->ae_target : 128;
+	int error = (int)mean - (int)target;
+	int abs_err = error < 0 ? -error : error;
 
-	if (mean > 128 + CONFIG_MPIX_AEC_THRESHOLD) {
-		MPIX_INF("Over-exposed at exposure %u, reducing exposure", ctrls->exposure_level);
-		val = val * (100 - CONFIG_MPIX_AEC_CHANGE_RATE) / 100 - 1;
-	} else if (mean < 128 - CONFIG_MPIX_AEC_THRESHOLD) {
-		MPIX_INF("Under-exposed at exposure %u, raising exposure", ctrls->exposure_level);
-		val = val * (100 + CONFIG_MPIX_AEC_CHANGE_RATE) / 100 + 1;
+	if (abs_err > CONFIG_MPIX_AEC_THRESHOLD) {
+		/* Scale change rate between MIN and MAX based on how far we are from target.
+		 * abs_err in [threshold..255] -> rate in [MIN..MAX]. Use 128 as mid reference. */
+		int dyn_rate = CONFIG_MPIX_AEC_MIN_CHANGE_RATE +
+			(CONFIG_MPIX_AEC_CHANGE_RATE - CONFIG_MPIX_AEC_MIN_CHANGE_RATE) * abs_err / 128;
+		if (dyn_rate > CONFIG_MPIX_AEC_CHANGE_RATE) dyn_rate = CONFIG_MPIX_AEC_CHANGE_RATE;
+		if (dyn_rate < CONFIG_MPIX_AEC_MIN_CHANGE_RATE) dyn_rate = CONFIG_MPIX_AEC_MIN_CHANGE_RATE;
+
+		if (error > 0) {
+			/* Over-exposed: reduce */
+			val = val * (100 - dyn_rate) / 100;
+			if (val < 1) val = 1;
+			MPIX_INF("AE over exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+		} else {
+			/* Under-exposed: increase */
+			val = val * (100 + dyn_rate) / 100;
+			MPIX_INF("AE under exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+		}
 	}
 
 	/* Update the value itself */
@@ -55,6 +79,7 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 		mpix_port_set_exposure(ctrls->dev, ctrls->exposure_level);
 	}
 }
+
 
 #ifndef CONFIG_MPIX_BLC_THRESHOLD
 /** @brief Number of pixels to cross before setting the minimum value */
