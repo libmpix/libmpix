@@ -2,19 +2,19 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   tests:
-    runs-on: ubuntu-25.04
+    runs-on: ubuntu-latest
     steps:
 
-      - name: arm-none-eabi-gcc GNU Arm Embedded Toolchain
-        uses: carlosperate/arm-none-eabi-gcc-action@v1.10.0
+      - name: Install packages to build it
+        run: |
+          sudo apt install cmake build-essential binutils-arm-none-eabi
 
-      - name: Setup cmake
-        uses: jwlawson/actions-setup-cmake@v2
+      - name: Clone the repository
+        uses: actions/checkout@v5
 
       - name: Build and run each test
         run: |
