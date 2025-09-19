@@ -39,45 +39,6 @@ static int str_get_value(const struct mpix_str *table, const char *name, uint32_
 	return ret;
 }
 
-static int parse_width_height(char *arg, uint16_t *width, uint16_t *height)
-{
-	unsigned long long ull;
-
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != 'x' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid width in <width>x<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-
-	*width = ull;
-	arg++;
-
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != '\0' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid height in <width>x<height> parameter '%s'", arg);
-		return -EINVAL;
-	}
-
-	*height = ull;
-
-	return 0;
-}
-
-static int parse_width(char *arg, uint16_t *width)
-{
-	unsigned long long ull;
-
-	ull = strtoull(arg, &arg, 10);
-	if (ull == 0 || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid width in <width> parameter '%s'", arg);
-		return -EINVAL;
-	}
-
-	*width = ull;
-
-	return 0;
-}
-
 static int cmd_read(int argc, char **argv)
 {
 	uint32_t fourcc = 0;
@@ -87,6 +48,9 @@ static int cmd_read(int argc, char **argv)
 	long filesize;
 	FILE *fp;
 	size_t sz;
+	char *arg;
+	char *end;
+	long long n;
 	int ret;
 
 	if (argc < 2) {
@@ -129,10 +93,14 @@ static int cmd_read(int argc, char **argv)
 		}
 
 	} else if (argc == 4) {
-		ret = parse_width(argv[2], &width);
-		if (ret != 0) {
-			return ret;
+		arg = argv[2];
+
+		n = strtoll(arg, &end, 10);
+		if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+			MPIX_ERR("Invalid <width> '%s'", arg);
+			return -EINVAL;
 		}
+		width = n;
 
 		ret = str_get_value(mpix_str_fmt, argv[3], &fourcc);
 		if (ret != 0) {
@@ -279,6 +247,7 @@ static int cmd_kernel(int argc, char **argv)
 	enum mpix_kernel_type type;
 	unsigned long int size;
 	char *arg;
+	char *end;
 	int ret;
 
 	if (argc != 3) {
@@ -292,7 +261,7 @@ static int cmd_kernel(int argc, char **argv)
 
 	arg = argv[2];
 
-	size = strtoul(arg, &arg, 10);
+	size = strtoul(arg, &end, 10);
 	if (*arg != '\0' || (size != 3 && size != 5)) {
 		MPIX_ERR("Invalid kernel size %s, must be 3 or 5", argv[2]);
 		return -EINVAL;
@@ -320,8 +289,9 @@ static int cmd_convert(int argc, char **argv)
 
 static int cmd_debayer(int argc, char **argv)
 {
-	unsigned long long size;
+	long long size;
 	char *arg;
+	char *end;
 
 	if (argc != 2) {
 		return -EINVAL;
@@ -329,7 +299,7 @@ static int cmd_debayer(int argc, char **argv)
 
 	arg = argv[1];
 
-	size = strtoul(arg, &arg, 10);
+	size = strtoul(arg, &end, 10);
 	if (*arg != '\0' || (size != 1 && size != 2 && size != 3)) {
 		MPIX_ERR("Invalid debayer size '%s', must be 1, 2 or 3", argv[1]);
 		return -EINVAL;
@@ -340,9 +310,10 @@ static int cmd_debayer(int argc, char **argv)
 
 static int cmd_palette(int argc, char **argv)
 {
-	unsigned long long bit_depth;
-	unsigned long long optimization_cycles;
+	unsigned int optimization_cycles;
+	long long n;
 	char *arg;
+	char *end;
 	int ret;
 
 	if (argc != 3) {
@@ -351,20 +322,25 @@ static int cmd_palette(int argc, char **argv)
 
 	arg = argv[1];
 
-	bit_depth = strtoul(arg, &arg, 10);
-	if (*arg != '\0' || !IN_RANGE(bit_depth, 1, 8)) {
-		MPIX_ERR("Invalid color bit detph '%s' (min=1, max=8)", argv[2]);
+	/* Parse bit_depth */
+
+	n = strtoul(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 1 || n > 8) {
+		MPIX_ERR("Invalid <bit_detph> '%s' (min=1, max=8)", arg);
 		return -EINVAL;
 	}
-	palette.fourcc = MPIX_FOURCC('P', 'L', 'T', '0' + bit_depth);
+	palette.fourcc = MPIX_FOURCC('P', 'L', 'T', '0' + n);
+
+	/* Parse optimization_cycles */
 
 	arg = argv[2];
 
-	optimization_cycles = strtoul(arg, &arg, 10);
-	if (*arg != '\0' || optimization_cycles > 1000) {
-		MPIX_ERR("Invalid number of optimization cycles '%s'", argv[2]);
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 0 || n > 1000) {
+		MPIX_ERR("Invalid number of <optimization_cycles> '%s' (min=1, max=1000)", arg);
 		return -EINVAL;
 	}
+	optimization_cycles = n;
 
 	for (unsigned int i = 0; i < optimization_cycles; i++) {
 		ret = mpix_image_optimize_palette(&img, &palette, img.width + img.height);
@@ -406,24 +382,48 @@ static int cmd_depalettize(int argc, char **argv)
 
 static int cmd_resize(int argc, char **argv)
 {
+	char *arg;
+	char *end;
 	uint32_t type;
 	uint16_t width = 0;
 	uint16_t height = 0;
+	long long n;
 	int ret;
 
 	if (argc != 3) {
 		return -EINVAL;
 	}
 
-	ret = str_get_value(mpix_str_resize, argv[1], &type);
+	/* Parse resize_type */
+
+	arg = argv[1];
+
+	ret = str_get_value(mpix_str_resize, arg, &type);
 	if (ret != 0) {
 		return ret;
 	}
 
-	ret = parse_width_height(argv[2], &width, &height);
-	if (ret != 0) {
-		return ret;
+	arg = argv[2];
+
+	/* Parse width */
+
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <width> '%s'", arg);
+		return -EINVAL;
 	}
+	width = n;
+
+	/* Parse height */
+
+	arg = argv[3];
+
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <height> '%s'", arg);
+		return -EINVAL;
+	}
+	height = n;
 
 	return mpix_image_resize(&img, type, width, height);
 }
@@ -432,48 +432,57 @@ static int cmd_crop(int argc, char **argv)
 {
 	uint16_t x_offset = 0, y_offset = 0;
 	uint16_t crop_width = 0, crop_height = 0;
-	unsigned long long ull;
+	long long n;
 	char *arg;
+	char *end;
 
 	if (argc != 5) {
 		return -EINVAL;
 	}
 
 	/* Parse x_offset */
+
 	arg = argv[1];
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != '\0' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid x_offset '%s'", argv[1]);
+
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <x_offset> '%s'", arg);
 		return -EINVAL;
 	}
-	x_offset = ull;
+	x_offset = n;
 
 	/* Parse y_offset */
+
 	arg = argv[2];
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != '\0' || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid y_offset '%s'", argv[2]);
+
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <y_offset> '%s'", arg);
 		return -EINVAL;
 	}
-	y_offset = ull;
+	y_offset = n;
 
 	/* Parse crop_width */
+
 	arg = argv[3];
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != '\0' || ull == 0 || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid crop_width '%s'", argv[3]);
+
+	n = strtoll(arg, &end, 10);
+	if (*arg == '\0' || *end != '\0' || n <= 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <crop_width> '%s'", arg);
 		return -EINVAL;
 	}
-	crop_width = ull;
+	crop_width = n;
 
 	/* Parse crop_height */
+
 	arg = argv[4];
-	ull = strtoull(arg, &arg, 10);
-	if (*arg != '\0' || ull == 0 || ull > UINT16_MAX) {
-		MPIX_ERR("Invalid crop_height '%s'", argv[4]);
+
+	n = strtoll(arg, &end, 10);
+	if (*arg != '\0' || n == 0 || n < 0 || n > UINT16_MAX) {
+		MPIX_ERR("Invalid <crop_height> '%s'", arg);
 		return -EINVAL;
 	}
-	crop_height = ull;
+	crop_height = n;
 
 	return mpix_image_crop(&img, x_offset, y_offset, crop_width, crop_height);
 }
@@ -481,10 +490,10 @@ static int cmd_crop(int argc, char **argv)
 static int cmd_correction(int argc, char **argv)
 {
 	union mpix_correction_any corr = {0};
-	unsigned long long ull;
-	long long ll;
+	long long n;
 	uint32_t type;
 	char *arg;
+	char *end;
 	int ret;
 
 	if (argc < 2) {
@@ -502,14 +511,16 @@ static int cmd_correction(int argc, char **argv)
 			return -EINVAL;
 		}
 
+		/* Parse black_level */
+
 		arg = argv[2];
 
-		ull = strtoull(arg, &arg, 10);
-		if (*argv[2] == '\0' || *arg != '\0' || ull > UINT8_MAX) {
-			MPIX_ERR("Invalid black level value '%s'", argv[2]);
+		n = strtoll(arg, &end, 10);
+		if (*arg == '\0' || *end != '\0' || n > UINT8_MAX) {
+			MPIX_ERR("Invalid <black_level> value '%s'", arg);
 			return -EINVAL;
 		}
-		corr.black_level.level = ull;
+		corr.black_level.level = n;
 
 		break;
 	case MPIX_CORRECTION_WHITE_BALANCE:
@@ -517,23 +528,27 @@ static int cmd_correction(int argc, char **argv)
 			return -EINVAL;
 		}
 
+		/* Parse red_level */
+
 		arg = argv[2];
 
-		ull = strtof(arg, &arg) * 1024;
-		if (*argv[2] == '\0' || *arg != '\0' || ull > UINT16_MAX) {
-			MPIX_ERR("Invalid red level value '%s'", argv[2]);
+		n = strtof(arg, &end) * 1024;
+		if (*arg == '\0' || *end != '\0' || n < 0 || n > UINT16_MAX) {
+			MPIX_ERR("Invalid <red_level> value '%s'", argv[2]);
 			return -EINVAL;
 		}
-		corr.white_balance.red_level = ull;
+		corr.white_balance.red_level = n;
+
+		/* Parse blue_level */
 
 		arg = argv[3];
 
-		ull = strtof(arg, &arg) * 1024;
-		if (*argv[3] == '\0' || *arg != '\0' || ull > UINT16_MAX) {
-			MPIX_ERR("Invalid blue level value '%s'", argv[3]);
+		n = strtof(arg, &end) * 1024;
+		if (*argv[3] == '\0' || *arg != '\0' || n < 0 || n > UINT16_MAX) {
+			MPIX_ERR("Invalid <blue_level> value '%s'", argv[3]);
 			return -EINVAL;
 		}
-		corr.white_balance.blue_level = ull;
+		corr.white_balance.blue_level = n;
 
 		break;
 	case MPIX_CORRECTION_GAMMA:
@@ -541,14 +556,16 @@ static int cmd_correction(int argc, char **argv)
 			return -EINVAL;
 		}
 
+		/* Parse gamma */
+
 		arg = argv[2];
 
-		ull = 255 * strtof(arg, &arg);
-		if (*argv[2] == '\0' || *arg != '\0' || ull > 255) {
-			MPIX_ERR("Invalid gamma value '%s' (min=0.0, max=1.0)", ull);
+		n = strtof(arg, &end) * 255;
+		if (*arg == '\0' || *end != '\0' || n < 0 || n > 255) {
+			MPIX_ERR("Invalid <gamma> value '%s' (min=0.0, max=1.0)", arg);
 			return -EINVAL;
 		}
-		corr.gamma.level = CLAMP(ull, 17, 255);
+		corr.gamma.level = CLAMP(n, 17, 255);
 
 		break;
 	case MPIX_CORRECTION_COLOR_MATRIX:
@@ -556,15 +573,17 @@ static int cmd_correction(int argc, char **argv)
 			return -EINVAL;
 		}
 
+		/* Parse color matrix */
+
 		for (int i = 2; i < 2 + 9; i++) {
 			arg = argv[i];
 
-			ll = strtof(arg, &arg) * (1 << MPIX_CORRECTION_SCALE_BITS);
-			if (*argv[i] == '\0' || *arg != '\0' || ll < INT16_MIN || ll > INT16_MAX) {
+			n = strtof(arg, &end) * (1 << MPIX_CORRECTION_SCALE_BITS);
+			if (*end == '\0' || *arg != '\0' || n < INT16_MIN || n > INT16_MAX) {
 				MPIX_ERR("Invalid CCM coefficient '%s'", argv[i]);
 				return -EINVAL;
 			}
-			corr.color_matrix.levels[i - 2] = ll;
+			corr.color_matrix.levels[i - 2] = n;
 		}
 
 		break;
