@@ -1,13 +1,38 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-#include <assert.h>
-#include <errno.h>
+#include <mpix/low_level.h>
+#include <mpix/operation.h>
 
-#include <mpix/formats.h>
-#include <mpix/genlist.h>
-#include <mpix/image.h>
-#include <mpix/op_qoi.h>
-#include <mpix/utils.h>
+MPIX_REGISTER_OP(qoi_encode);
+
+struct mpix_operation {
+	struct mpix_base_op base;
+	/** Array of previously seen pixels */
+	uint8_t qoi_cache[64 * 3];
+	/** The last seend pixel value just before the new pixel to encode */
+	uint8_t qoi_prev[3];
+	/** Size of the ongoing run */
+	uint8_t qoi_run_length;
+};
+
+int mpix_add_qoi_encode(struct mpix_image *img, const int32_t *params)
+{
+	struct mpix_operation *op;
+	size_t pitch = mpix_format_pitch(&img->fmt);
+
+	(void)params;
+
+	/* Add an operation */
+	op = mpix_op_append(img, MPIX_OP_QOI_ENCODE, sizeof(*op), pitch);
+	if (op == NULL) {
+		return -ENOMEM;
+	}
+
+	/* Update the image format */
+	img->fmt.fourcc = MPIX_FMT_QOI;
+
+	return 0;
+}
 
 #define MPIX_QOI_OP_INDEX  0x00 /* 00xxxxxx */
 #define MPIX_QOI_OP_DIFF   0x40 /* 01xxxxxx */
@@ -33,7 +58,7 @@
 	dst[o++] = (u) >> 0;                                                                       \
 })
 
-static inline size_t mpix_qoi_add_header(struct mpix_qoi_op *op, uint8_t *dst, size_t dst_sz)
+static inline size_t mpix_qoi_add_header(struct mpix_operation *op, uint8_t *dst, size_t dst_sz)
 {
 	size_t o = 0;
 
@@ -44,10 +69,10 @@ static inline size_t mpix_qoi_add_header(struct mpix_qoi_op *op, uint8_t *dst, s
 	MPIX_QOI_PUT_U8('f');
 
 	/* width */
-	MPIX_QOI_PUT_U32(op->base.width);
+	MPIX_QOI_PUT_U32(op->base.fmt.width);
 
 	/* height */
-	MPIX_QOI_PUT_U32(op->base.height);
+	MPIX_QOI_PUT_U32(op->base.fmt.height);
 
 	/* channels */
 	MPIX_QOI_PUT_U8(3);
@@ -58,7 +83,7 @@ static inline size_t mpix_qoi_add_header(struct mpix_qoi_op *op, uint8_t *dst, s
 	return o;
 }
 
-static inline size_t mpix_qoi_encode_rgb24(struct mpix_qoi_op *op, const uint8_t *src,
+static inline size_t mpix_qoi_encode_rgb24(struct mpix_operation *op, const uint8_t *src,
 					   uint8_t *dst, size_t dst_sz, bool is_last)
 {
 	const uint8_t r = src[0];
@@ -133,23 +158,24 @@ static inline size_t mpix_qoi_encode_rgb24(struct mpix_qoi_op *op, const uint8_t
 	return o;
 }
 
-void mpix_qoi_encode_rgb24_op(struct mpix_base_op *base)
+int mpix_run_qoi_encode(struct mpix_base_op *base)
 {
-	struct mpix_qoi_op *op = (void *)base;
-	bool first = (base->line_offset == 0);
-	const uint8_t *src = mpix_op_get_input_line(base);
-	size_t dst_sz = 0;
-	uint8_t *dst = mpix_op_peek_output(base, &dst_sz);
-	bool is_last = (base->line_offset >= base->height);
+	struct mpix_operation *op = (void *)base;
+	const uint8_t *src;
+	uint8_t *dst;
+	bool is_first = (base->line_offset == 0);
+	bool is_last = (base->line_offset >= base->fmt.height);
+	size_t dst_sz;
 	size_t o = 0;
 
-	assert(base->width > 0);
+	MPIX_OP_INPUT_LINES(base, &src, 1);
+	MPIX_OP_OUTPUT_PEEK(base, &dst, &dst_sz);
 
-	if (first) {
+	if (is_first) {
 		o += mpix_qoi_add_header(op, dst + o, dst_sz - o);
 	}
 
-	for (uint16_t w = 0; w < base->width - 1; w++, src += 3) {
+	for (uint16_t w = 0; w < base->fmt.width - 1; w++, src += 3) {
 		o += mpix_qoi_encode_rgb24(op, src, dst + o, dst_sz - o, false);
 	}
 	o += mpix_qoi_encode_rgb24(op, src, dst + o, dst_sz - o, is_last);
@@ -159,24 +185,9 @@ void mpix_qoi_encode_rgb24_op(struct mpix_base_op *base)
 		dst[o++] = 0x00, dst[o++] = 0x00, dst[o++] = 0x00, dst[o++] = 0x01;
 	}
 
-	mpix_op_get_output_bytes(base, o);
-	mpix_op_done(base);
-}
-MPIX_REGISTER_QOI_OP(encode_rgb24, mpix_qoi_encode_rgb24_op, RGB24, QOI);
+	MPIX_OP_OUTPUT_FLUSH(base, o);
+	MPIX_OP_OUTPUT_DONE(base);
+	MPIX_OP_INPUT_DONE(base, 1);
 
-static const struct mpix_qoi_op **mpix_qoi_op_list =
-	(const struct mpix_qoi_op *[]){MPIX_LIST_QOI_OP};
-
-int mpix_image_qoi_encode(struct mpix_image *img)
-{
-	struct mpix_qoi_op *op = NULL;
-
-	op = mpix_op_by_format(mpix_qoi_op_list, img->fourcc, MPIX_FMT_QOI);
-	if (op == NULL) {
-		MPIX_ERR("Conversion operation from %s to %s not found",
-			 MPIX_FOURCC_TO_STR(img->fourcc), MPIX_FOURCC_TO_STR(MPIX_FMT_QOI));
-		return mpix_image_error(img, -ENOSYS);
-	}
-
-	return mpix_image_append_uncompressed_op(img, &op->base, sizeof(*op));
+	return 0;
 }

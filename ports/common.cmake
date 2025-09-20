@@ -7,35 +7,44 @@ set_property(GLOBAL PROPERTY LIBMPIX_DIR ${LIBMPIX_DIR})
 set(LIBMPIX_SRC
   ${LIBMPIX_DIR}/src/JPEGENC.c
   ${LIBMPIX_DIR}/src/auto.c
-  ${LIBMPIX_DIR}/src/formats.c
-  ${LIBMPIX_DIR}/src/image.c
   ${LIBMPIX_DIR}/src/op_convert.c
-  ${LIBMPIX_DIR}/src/op_correction.c
+  ${LIBMPIX_DIR}/src/op_correct_black_level.c
+  ${LIBMPIX_DIR}/src/op_correct_color_matrix.c
+  ${LIBMPIX_DIR}/src/op_correct_fused.c
+  ${LIBMPIX_DIR}/src/op_correct_gamma.c
+  ${LIBMPIX_DIR}/src/op_correct_white_balance.c
   ${LIBMPIX_DIR}/src/op_crop.c
-  ${LIBMPIX_DIR}/src/op_debayer.c
-  ${LIBMPIX_DIR}/src/op_jpeg.c
-  ${LIBMPIX_DIR}/src/op_kernel.c
-  ${LIBMPIX_DIR}/src/op_palettize.c
+  ${LIBMPIX_DIR}/src/op_debayer_1x1.c
+  ${LIBMPIX_DIR}/src/op_debayer_2x2.c
+  ${LIBMPIX_DIR}/src/op_debayer_3x3.c
+  ${LIBMPIX_DIR}/src/op_jpeg_encode.c
+  ${LIBMPIX_DIR}/src/op_kernel_convolve_3x3.c
+  ${LIBMPIX_DIR}/src/op_kernel_convolve_5x5.c
+  ${LIBMPIX_DIR}/src/op_kernel_denoise_3x3.c
+  ${LIBMPIX_DIR}/src/op_kernel_denoise_5x5.c
+  ${LIBMPIX_DIR}/src/op_palette_decode.c
+  ${LIBMPIX_DIR}/src/op_palette_encode.c
   ${LIBMPIX_DIR}/src/op_qoi.c
-  ${LIBMPIX_DIR}/src/op_resize.c
+  ${LIBMPIX_DIR}/src/op_subsample.c
+  ${LIBMPIX_DIR}/src/palette.c
+  ${LIBMPIX_DIR}/src/pipeline.c
   ${LIBMPIX_DIR}/src/print.c
   ${LIBMPIX_DIR}/src/sample.c
   ${LIBMPIX_DIR}/src/stats.c
   ${LIBMPIX_DIR}/src/str.c
-  ${LIBMPIX_DIR}/src/utils.c
 )
 
 function(libmpix_init target)
   get_property(genlist_src GLOBAL PROPERTY LIBMPIX_GENLIST_SRC)
   get_property(libmpix_dir GLOBAL PROPERTY LIBMPIX_DIR)
-  set(genlist_py ${libmpix_dir}/scripts/genlist.py)
+  set(genlist_sh ${libmpix_dir}/scripts/genlist.sh)
   set(genlist_inc ${CMAKE_CURRENT_BINARY_DIR}/include)
   set(genlist_h ${CMAKE_CURRENT_BINARY_DIR}/include/mpix/genlist.h)
 
   file(MAKE_DIRECTORY ${genlist_inc}/mpix)
 
   add_custom_command(
-    COMMAND python ${genlist_py} ${genlist_src} >${genlist_h}
+    COMMAND sh ${genlist_sh} ${genlist_src} >${genlist_h}
     OUTPUT ${genlist_h}
     DEPENDS ${genlist_src}
   )

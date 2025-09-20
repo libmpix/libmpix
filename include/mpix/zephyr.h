@@ -7,6 +7,10 @@
 #ifndef MPIX_ZEPHYR_H
 #define MPIX_ZEPHYR_H
 
+#include <drivers/video.h>
+#include <mpix/image.h>
+#include <mpix/types.h>
+
 /**
  * @brief Initialize an image from a video buffer.
  *

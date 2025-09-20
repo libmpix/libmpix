@@ -10,25 +10,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/**
- * @brief Histogram of one or multiple channels.
- */
-struct mpix_stats {
-	/** Storage for the values. One buffer per channel. Maximum number of channels is 3. */
-	uint16_t y_histogram[64];
-	/** Average value for each histogram bin. */
-	uint8_t y_histogram_vals[64];
-	/** Average value for each histogram bin. */
-	uint16_t y_histogram_total;
-	/** Average pixel value */
-	uint8_t rgb_average[3];
-	/** Minimum of each channel */
-	uint8_t rgb_min[3];
-	/** Maximum of each channel */
-	uint8_t rgb_max[3];
-	/** Number of values collected for building these statistics. */
-	uint16_t nvals;
-};
+#include <mpix/types.h>
 
 /**
  * @brief Collect red, green, blue channel averages of all pixels in an RGB24 frame.
@@ -42,15 +24,7 @@ struct mpix_stats {
  * @param height Height of the buffer in pixels.
  * @param fourcc Pixel format of the buffer.
  */
-void mpix_stats_from_buf(struct mpix_stats *stats,
-			 const uint8_t *buf, uint16_t width, uint16_t height, uint32_t fourcc);
-
-/**
- * @brief Print a representation of the statistics in the console for debug purpose.
- *
- * @param stats The statistics to print out.
- */
-void mpix_stats_print(struct mpix_stats *stats);
+void mpix_stats_from_buf(struct mpix_stats *stats, const uint8_t *buf, struct mpix_format *fmt);
 
 /**
  * @brief Get the mean value from a histogram.

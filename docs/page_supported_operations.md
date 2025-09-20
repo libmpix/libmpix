@@ -17,8 +17,6 @@ You may extend this list directly inside the applicatoin via @ref mpix_bits_per_
 
 libmpix can perform pixel format conversion to support multiple input and output formats.
 
-@dotfile dot/op_convert.dot
-
 @see @ref how_to_convert
 
 ## Raw Bayer format conversion
@@ -30,9 +28,6 @@ The various options are:
 
 - 3x3, a higher quality but more compute intensive variant
 - 2x2, a lower quality but faster to process variant
-- 1x1, which lets the bayer pattern unchanged, useful for debug purpose
-
-@dotfile dot/op_debayer.dot
 
 @see @ref how_to_debayer
 
@@ -44,8 +39,6 @@ The performance quickly goes down as approaching 256 colors (`PALETTE8`),
 and the image loose most of the information as approaching 2 colors (`PALETTE1`).
 Intermediate palette sizes are a trade-off of performance vs quality.
 
-@dotfile dot/op_palettize.dot
-
 @see @ref how_to_palettize
 
 ## QOI format conversion
@@ -55,15 +48,11 @@ less efficient than PNG but lighter in CPU, memory and flash resources.
 
 The output is byte-per-byte identical to the reference implementation.
 
-@dotfile dot/op_qoi.dot
-
 @see @ref how_to_qoi
 
 ## Image correction
 
 libmpix can perform image correction operations as found in most ISP pipelines:
-
-@dotfile dot/op_correction.dot
 
 @see @ref how_to_correct
 
@@ -73,16 +62,12 @@ libmpix can perform several
 [kernel image processing](https://en.wikipedia.org/wiki/Kernel_(image_processing))
 operations to work on adjacent pixel affecting the sharpness, noise, blurriness...
 
-@dotfile dot/op_kernel.dot
-
 @see @ref how_to_kernel
 
 ## Image resizing operations
 
 libmpix can resize images using various strategies with a different trade-off between quality,
 flexibility and performance.
-
-@dotfile dot/op_resize.dot
 
 @see @ref how_to_resize
 

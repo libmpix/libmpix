@@ -40,16 +40,6 @@ void *mpix_port_alloc(size_t size);
 void mpix_port_free(void *mem);
 
 /**
- * @brief Print debug information to the console
- *
- * This will be used to log debug messages according to the log level, as well as print image
- * previews in the terminal.
- *
- * @param fmt A printf format string followed by arguments to be printed.
- */
-void mpix_port_printf(const char *fmt, ...);
-
-/**
  * @brief Initialize the exposure control with min/max values and current value.
  *
  * @param dev Device on which apply the exposure, as a port-specific type.

@@ -6,13 +6,23 @@
 #include <string.h>
 
 #include <mpix/formats.h>
-#include <mpix/op_convert.h>
 #include <mpix/sample.h>
 #include <mpix/utils.h>
+#include <mpix/low_level.h>
 
-#define MPIX_IDX_R 0
-#define MPIX_IDX_G 1
-#define MPIX_IDX_B 2
+static uint32_t mpix_lcg_rand_u32(void)
+{
+	static uint32_t lcg_state;
+
+	/* Linear Congruent Generator (LCG) are low-quality but very fast, here considered enough
+	 * as even a fixed offset would have been enough.The % phase is skipped as there is already
+	 * "% vbuf->bytesused" downstream in the code.
+	 *
+	 * The constants are from https://en.wikipedia.org/wiki/Linear_congruential_generator
+	 */
+	lcg_state = lcg_state * 1103515245 + 12345;
+	return lcg_state;
+}
 
 static inline void mpix_sample_random_raw24(const uint8_t *buf, uint16_t width, uint16_t height,
 					    uint8_t rgb[3])
@@ -52,45 +62,36 @@ static inline void mpix_sample_random_bayer(const uint8_t *buf, uint16_t width, 
 	rgb[i3] = buf[(h + 1) * width + (w + 1)];
 }
 
-int mpix_sample_random_rgb(const uint8_t *buf, uint16_t width, uint16_t height, uint32_t fourcc,
-			   uint8_t *rgb)
+int mpix_sample_random_rgb(const uint8_t *buf, const struct mpix_format *fmt, uint8_t *rgb)
 {
-	switch (fourcc) {
+	enum { R, G, B };
+
+	switch (fmt->fourcc) {
 	case MPIX_FMT_RGB24:
-		mpix_sample_random_raw24(buf, width, height, rgb);
+		mpix_sample_random_raw24(buf, fmt->width, fmt->height, rgb);
 		break;
 	case MPIX_FMT_RGB565:
-		mpix_sample_random_rgb565le(buf, width, height, rgb);
+		mpix_sample_random_rgb565le(buf, fmt->width, fmt->height, rgb);
 		break;
 	case MPIX_FMT_YUYV:
-		mpix_sample_random_yuyv(buf, width, height, rgb);
+		mpix_sample_random_yuyv(buf, fmt->width, fmt->height, rgb);
 		break;
 	case MPIX_FMT_SRGGB8:
-		mpix_sample_random_bayer(buf, width, height, rgb,
-					 MPIX_IDX_R, MPIX_IDX_G, MPIX_IDX_G, MPIX_IDX_B);
+		mpix_sample_random_bayer(buf, fmt->width, fmt->height, rgb, R, G, G, B);
 		break;
-	case MPIX_FMT_BGGR8:
 	case MPIX_FMT_SBGGR8:
-		mpix_sample_random_bayer(buf, width, height, rgb,
-					 MPIX_IDX_B, MPIX_IDX_G, MPIX_IDX_G, MPIX_IDX_R);
+		mpix_sample_random_bayer(buf, fmt->width, fmt->height, rgb, B, G, G, R);
 		break;
 	case MPIX_FMT_SGBRG8:
-		mpix_sample_random_bayer(buf, width, height, rgb,
-					 MPIX_IDX_G, MPIX_IDX_B, MPIX_IDX_R, MPIX_IDX_G);
+		mpix_sample_random_bayer(buf, fmt->width, fmt->height, rgb, G, B, R, G);
 		break;
 	case MPIX_FMT_SGRBG8:
-		mpix_sample_random_bayer(buf, width, height, rgb,
-					 MPIX_IDX_G, MPIX_IDX_R, MPIX_IDX_B, MPIX_IDX_G);
+		mpix_sample_random_bayer(buf, fmt->width, fmt->height, rgb, G, R, B, G);
 		break;
 	default:
-		MPIX_ERR("Unsupported pixel format %s", MPIX_FOURCC_TO_STR(fourcc));
+		MPIX_ERR("Unsupported pixel format %s", MPIX_FOURCC_TO_STR(fmt->fourcc));
 		return -ENOTSUP;
 	}
 
 	return 0;
-}
-
-int mpix_image_sample_random_rgb(struct mpix_image *img, uint8_t rgb[3])
-{
-	return mpix_sample_random_rgb(img->buffer, img->width, img->height, img->fourcc, rgb);
 }

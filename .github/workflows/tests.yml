@@ -18,4 +18,4 @@ jobs:
 
       - name: Build and run each test
         run: |
-          sh scripts/runtests.sh
+          sh tests/run.sh

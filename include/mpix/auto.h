@@ -10,34 +10,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <mpix/stats.h>
-#include <mpix/op_correction.h>
+#include <mpix/types.h>
 
 /**
- * State and configuration for automatic image controls.
- * @internal
- */
-struct mpix_auto_ctrls {
-	/** Pointer to user-provided data that represents a video device */
-	void *dev;
-	/** Current sensor exposure value */
-	int32_t exposure_level;
-	/** Maximum sensor exposure value */
-	int32_t exposure_max;
-	/** Target luma (0-255) for AE */
-	uint8_t ae_target;
-	/** The correction levels */
-	struct mpix_correction_all correction;
-};
-
-/**
- * @brief Configure the video device to use for sending controls such as exposure.
+ * @brief Set the defaults for the auto-tuning parameters that are set to zero
  *
  * @param ctrls The Image Processing Algorithm (IPA) context to initialize.
- * @param dev The device pointer, passed to functions such as @ref mpix_port_set_exposure().
- * @return 0 on success or negative error code.
  */
-int mpix_auto_exposure_init(struct mpix_auto_ctrls *ctrls, void *dev);
+void mpix_auto_init_defaults(struct mpix_auto_ctrls *ctrls);
 
 /**
  * @brief Run auto-exposure algorithm to update the exposure control value.

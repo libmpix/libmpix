@@ -21,11 +21,11 @@ void *mpix_port_alloc(size_t size)
 {
     // Align size to 8-byte boundary
     size = (size + 7) & ~7;
-    
+
     if (heap_offset + size > MPIX_HEAP_SIZE) {
         return NULL; // Out of memory
     }
-    
+
     void *ptr = &heap_memory[heap_offset];
     heap_offset += size;
     return ptr;
@@ -58,32 +58,6 @@ uint32_t mpix_port_get_uptime_us(void)
     #endif
 }
 
-void mpix_port_printf(const char *fmt, ...)
-{
-    va_list ap;
-    
-    va_start(ap, fmt);
-    vprintf(fmt, ap);
-    va_end(ap);
-    fflush(stdout);
-}
-
-/* Dummy implementation for camera exposure control */
-int mpix_port_init_exposure(void *dev, int32_t *def, int32_t *max)
-{
-    (void)dev;
-    if (def) *def = 1000;  // Default exposure
-    if (max) *max = 10000; // Maximum exposure
-    return 0;
-}
-
-int mpix_port_set_exposure(void *dev, int32_t val)
-{
-    (void)dev;
-    (void)val;
-    return 0;
-}
-
 /* Memory utilities for ARM Cortex-M55 */
 void mpix_port_memory_info(void)
 {
@@ -91,7 +65,7 @@ void mpix_port_memory_info(void)
     printf("  Heap size: %u bytes\n", MPIX_HEAP_SIZE);
     printf("  Heap used: %zu bytes\n", heap_offset);
     printf("  Heap free: %zu bytes\n", MPIX_HEAP_SIZE - heap_offset);
-    
+
     #ifdef __ARM_FEATURE_MVE
     printf("  ARM Helium MVE: Available\n");
     #else
@@ -105,7 +79,7 @@ void mpix_port_init(void)
     // Initialize heap
     heap_offset = 0;
     memset(heap_memory, 0, MPIX_HEAP_SIZE);
-    
+
     // Enable DWT cycle counter if available
     #ifdef DWT
     if (!(DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk)) {
@@ -113,7 +87,7 @@ void mpix_port_init(void)
         DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
     }
     #endif
-    
+
     printf("libmpix QEMU Cortex-M55 port initialized\n");
     mpix_port_memory_info();
 }

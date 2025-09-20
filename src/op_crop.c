@@ -1,16 +1,54 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
-#include <errno.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include <mpix/low_level.h>
+#include <mpix/operation.h>
 
-#include <mpix/genlist.h>
-#include <mpix/image.h>
-#include <mpix/op_crop.h>
-#include <mpix/utils.h>
+MPIX_REGISTER_OP(crop, P_X_OFFSET, P_Y_OFFSET, P_WIDTH, P_HEIGHT);
 
-static inline void mpix_crop_line(const uint8_t *src_buf, size_t src_width, uint8_t *dst_buf,
+struct mpix_operation {
+	struct mpix_base_op base;
+	/* Parameters */
+	uint16_t x_offset;
+	uint16_t y_offset;
+	uint16_t width;
+	uint16_t height;
+};
+
+int mpix_add_crop(struct mpix_image *img, const int32_t *params)
+{
+	struct mpix_operation *op;
+	size_t pitch = mpix_format_pitch(&img->fmt);
+
+	/* Parameter validation */
+	if (params[P_X_OFFSET] < 0 || params[P_X_OFFSET] > UINT16_MAX ||
+	    params[P_Y_OFFSET] < 0 || params[P_Y_OFFSET] > UINT16_MAX ||
+	    params[P_WIDTH] < 1 || params[P_WIDTH] > UINT16_MAX ||
+	    params[P_HEIGHT] < 1 || params[P_HEIGHT] > UINT16_MAX) {
+		return -ERANGE;
+	}
+	if (params[P_X_OFFSET] + params[P_WIDTH] > img->fmt.width ||
+	    params[P_Y_OFFSET] + params[P_HEIGHT] > img->fmt.height) {
+		return -ERANGE;
+	}
+
+	/* Add an operation */
+	op = mpix_op_append(img, MPIX_OP_CROP, sizeof(*op), pitch);
+	if (op == NULL) return -ENOMEM;
+
+	/* Store parameters */
+	op->x_offset = params[P_X_OFFSET];
+	op->y_offset = params[P_Y_OFFSET];
+	op->width = params[P_WIDTH];
+	op->height = params[P_HEIGHT];
+
+	/* Update the image format */
+	img->fmt.width = params[P_WIDTH];
+	img->fmt.height = params[P_HEIGHT];
+
+	return 0;
+}
+
+static inline void mpix_crop_line(const uint8_t *src_buf, uint8_t *dst_buf,
 				  size_t x_offset, size_t crop_width, uint8_t bits_per_pixel)
 {
 	size_t src_offset_bytes = x_offset * bits_per_pixel / BITS_PER_BYTE;
@@ -26,140 +64,41 @@ static inline void mpix_crop_frame(const uint8_t *src_buf, size_t src_width, siz
 	size_t src_line_bytes = src_width * bits_per_pixel / BITS_PER_BYTE;
 	size_t dst_line_bytes = crop_width * bits_per_pixel / BITS_PER_BYTE;
 
-	for (size_t dst_h = 0; dst_h < crop_height; dst_h++) {
+	for (size_t dst_h = 0; dst_h < crop_height && dst_h < src_height; dst_h++) {
 		size_t src_h = y_offset + dst_h;
 		size_t src_line_offset = src_h * src_line_bytes;
 		size_t dst_line_offset = dst_h * dst_line_bytes;
 
-		mpix_crop_line(&src_buf[src_line_offset], src_width, &dst_buf[dst_line_offset],
+		mpix_crop_line(&src_buf[src_line_offset], &dst_buf[dst_line_offset],
 			       x_offset, crop_width, bits_per_pixel);
 	}
 }
 
-__attribute__((weak))
-void mpix_crop_frame_raw24(const uint8_t *src_buf, size_t src_width, size_t src_height,
-			   uint8_t *dst_buf, size_t x_offset, size_t y_offset,
-			   size_t crop_width, size_t crop_height)
+int mpix_run_crop(struct mpix_base_op *base)
 {
-	mpix_crop_frame(src_buf, src_width, src_height, dst_buf, x_offset, y_offset,
-			crop_width, crop_height, 24);
-}
+	struct mpix_operation *op = (void *)base;
+	const uint8_t *src;
+	uint8_t *dst;
 
-__attribute__((weak))
-void mpix_crop_frame_raw16(const uint8_t *src_buf, size_t src_width, size_t src_height,
-			   uint8_t *dst_buf, size_t x_offset, size_t y_offset,
-			   size_t crop_width, size_t crop_height)
-{
-	mpix_crop_frame(src_buf, src_width, src_height, dst_buf, x_offset, y_offset,
-			crop_width, crop_height, 16);
-}
-
-__attribute__((weak))
-void mpix_crop_frame_raw8(const uint8_t *src_buf, size_t src_width, size_t src_height,
-			  uint8_t *dst_buf, size_t x_offset, size_t y_offset,
-			  size_t crop_width, size_t crop_height)
-{
-	mpix_crop_frame(src_buf, src_width, src_height, dst_buf, x_offset, y_offset,
-			crop_width, crop_height, 8);
-}
-
-static inline void mpix_crop_op(struct mpix_base_op *base, uint8_t bits_per_pixel)
-{
-	struct mpix_crop_op *crop_op = (struct mpix_crop_op *)base;
-	
-	/* Check if we're past the crop region */
-	if (base->line_offset >= crop_op->y_offset + crop_op->crop_height) {
-		/* We're done cropping, consume remaining input without output */
-		if (base->line_offset < base->height) {
-			mpix_op_get_input_line(base);
-		}
-		return;
-	}
+	MPIX_OP_INPUT_LINES(base, &src, 1);
 
 	/* Skip lines until we reach the crop region */
-	if (base->line_offset < crop_op->y_offset) {
-		/* Skip lines before the crop region */
-		mpix_op_get_input_line(base);
-		return;
+	if (base->line_offset < op->y_offset) {
+		MPIX_OP_INPUT_DONE(base, 1);
+		return 0;
 	}
 
-	/* Process line within the crop region */
-	const uint8_t *line_in = mpix_op_get_input_line(base);
-	uint8_t *line_out = mpix_op_get_output_line(base);
-
-	mpix_crop_line(line_in, base->width, line_out, crop_op->x_offset,
-		       crop_op->crop_width, bits_per_pixel);
-
-	mpix_op_done(base);
-}
-
-__attribute__((weak))
-void mpix_crop_op_raw24(struct mpix_base_op *base)
-{
-	mpix_crop_op(base, 24);
-}
-MPIX_REGISTER_CROP_OP(rgb24, mpix_crop_op_raw24, RGB24);
-MPIX_REGISTER_CROP_OP(yuv24, mpix_crop_op_raw24, YUV24);
-
-__attribute__((weak))
-void mpix_crop_op_raw16(struct mpix_base_op *base)
-{
-	mpix_crop_op(base, 16);
-}
-MPIX_REGISTER_CROP_OP(rgb565, mpix_crop_op_raw16, RGB565);
-MPIX_REGISTER_CROP_OP(rgb565x, mpix_crop_op_raw16, RGB565X);
-
-__attribute__((weak))
-void mpix_crop_op_raw8(struct mpix_base_op *base)
-{
-	mpix_crop_op(base, 8);
-}
-MPIX_REGISTER_CROP_OP(grey, mpix_crop_op_raw8, GREY);
-MPIX_REGISTER_CROP_OP(rgb332, mpix_crop_op_raw8, RGB332);
-
-static const struct mpix_crop_op **mpix_crop_op_list =
-	(const struct mpix_crop_op *[]){MPIX_LIST_CROP_OP};
-
-int mpix_image_crop(struct mpix_image *img, uint16_t x_offset, uint16_t y_offset,
-		    uint16_t crop_width, uint16_t crop_height)
-{
-	const struct mpix_crop_op *op = NULL;
-	struct mpix_crop_op *crop_op = NULL;
-	int ret;
-
-	/* Validate crop parameters */
-	if (x_offset + crop_width > img->width || y_offset + crop_height > img->height) {
-		MPIX_ERR("Crop region (%d,%d) %dx%d exceeds image bounds %dx%d",
-			 x_offset, y_offset, crop_width, crop_height, img->width, img->height);
-		return mpix_image_error(img, -EINVAL);
+	/* Check if we're past the crop region */
+	if (base->line_offset >= op->y_offset + op->height) {
+		MPIX_OP_INPUT_DONE(base, 1);
+		return 0;
 	}
 
-	if (crop_width == 0 || crop_height == 0) {
-		MPIX_ERR("Crop dimensions must be greater than zero");
-		return mpix_image_error(img, -EINVAL);
-	}
+	MPIX_OP_OUTPUT_LINE(base, &dst);
+	mpix_crop_line(src, dst, op->x_offset, op->width, mpix_bits_per_pixel(base->fmt.fourcc));
+	MPIX_OP_OUTPUT_DONE(base);
 
-	op = mpix_op_by_format(mpix_crop_op_list, img->fourcc, img->fourcc);
-	if (op == NULL) {
-		MPIX_ERR("Crop operation for %s not found", MPIX_FOURCC_TO_STR(img->fourcc));
-		return mpix_image_error(img, -ENOSYS);
-	}
+	MPIX_OP_INPUT_DONE(base, 1);
 
-	ret = mpix_image_append_uncompressed_op(img, &op->base, sizeof(*op));
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Get the allocated operation and configure it */
-	crop_op = (struct mpix_crop_op *)img->ops.last;
-	crop_op->x_offset = x_offset;
-	crop_op->y_offset = y_offset;
-	crop_op->crop_width = crop_width;
-	crop_op->crop_height = crop_height;
-
-	/* Update the image dimensions to reflect the crop */
-	img->width = crop_width;
-	img->height = crop_height;
-
-	return ret;
+	return 0;
 }

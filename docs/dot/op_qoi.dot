@@ -1,7 +1,0 @@
-digraph mpix_op_convert_list {
-    node [fontname=monospace, fontsize=10, shape=record];
-
-    RGB24 [ label="RGB24" URL="@ref MPIX_FMT_RGB24"];
-    QOI [ label="QOI" URL="@ref MPIX_FMT_QOI"];
-    RGB24 -> QOI [label="", fontname=monospace, fontsize=9];
-}

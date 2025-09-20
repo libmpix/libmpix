@@ -738,20 +738,24 @@ void mpix_gaussianblur_rgb24_5x5(const uint8_t *in[5], uint8_t *out, uint16_t wi
 			uint8x16_t e4 = vldrbq_gather_offset_z_u8(e + 2, inc, p0);
 
 			/* Use existing H121 macros logic by reusing helpers inline */
-#define H121_ROW_LOA(a,b,c,d,e) ({ \
-	uint16x8_t _ae = vaddq_u16(vmovlbq_u8(a), vmovlbq_u8(e)); \
-	uint16x8_t _bd = vaddq_u16(vmovlbq_u8(b), vmovlbq_u8(d)); \
-	uint16x8_t _c  = vmovlbq_u8(c); \
-	uint16x8_t _sum = vaddq_u16(_ae, vshlq_n_u16(_bd, 2)); \
-	_sum = vaddq_u16(_sum, vaddq_u16(vshlq_n_u16(_c, 2), vshlq_n_u16(_c, 1))); \
-	_sum; })
-#define H121_ROW_HIA(a,b,c,d,e) ({ \
-	uint16x8_t _ae = vaddq_u16(vmovltq_u8(a), vmovltq_u8(e)); \
-	uint16x8_t _bd = vaddq_u16(vmovltq_u8(b), vmovltq_u8(d)); \
-	uint16x8_t _c  = vmovltq_u8(c); \
-	uint16x8_t _sum = vaddq_u16(_ae, vshlq_n_u16(_bd, 2)); \
-	_sum = vaddq_u16(_sum, vaddq_u16(vshlq_n_u16(_c, 2), vshlq_n_u16(_c, 1))); \
-	_sum; })
+#define H121_ROW_LOA(a,b,c,d,e) \
+	({ \
+		uint16x8_t _ae = vaddq_u16(vmovlbq_u8(a), vmovlbq_u8(e)); \
+		uint16x8_t _bd = vaddq_u16(vmovlbq_u8(b), vmovlbq_u8(d)); \
+		uint16x8_t _c  = vmovlbq_u8(c); \
+		uint16x8_t _sum = vaddq_u16(_ae, vshlq_n_u16(_bd, 2)); \
+		_sum = vaddq_u16(_sum, vaddq_u16(vshlq_n_u16(_c, 2), vshlq_n_u16(_c, 1))); \
+		_sum; \
+	})
+#define H121_ROW_HIA(a,b,c,d,e) \
+	({ \
+		uint16x8_t _ae = vaddq_u16(vmovltq_u8(a), vmovltq_u8(e)); \
+		uint16x8_t _bd = vaddq_u16(vmovltq_u8(b), vmovltq_u8(d)); \
+		uint16x8_t _c  = vmovltq_u8(c); \
+		uint16x8_t _sum = vaddq_u16(_ae, vshlq_n_u16(_bd, 2)); \
+		_sum = vaddq_u16(_sum, vaddq_u16(vshlq_n_u16(_c, 2), vshlq_n_u16(_c, 1))); \
+		_sum; \
+	})
 
 			uint16x8_t h0_lo = H121_ROW_LOA(a0,b0,c0,d0,e0);
 			uint16x8_t h0_hi = H121_ROW_HIA(a0,b0,c0,d0,e0);
@@ -1733,5 +1737,3 @@ void mpix_edgedetect_rgb24_5x5(const uint8_t *in[5], uint8_t *out, uint16_t widt
 		}
 	}
 }
-
-

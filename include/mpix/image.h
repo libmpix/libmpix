@@ -1,5 +1,5 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /**
- * SPDX-License-Identifier: Apache-2.0
  * @defgroup mpix_image_h mpix/image.h
  * @brief Main user API
  * @{
@@ -7,47 +7,13 @@
 #ifndef MPIX_IMAGE_H
 #define MPIX_IMAGE_H
 
+#include <mpix/custom_api.h>
 #include <mpix/formats.h>
-#include <mpix/op.h>
-#include <mpix/op_correction.h>
-#include <mpix/op_crop.h>
-#include <mpix/op_kernel.h>
-#include <mpix/op_palettize.h>
-#include <mpix/op_resize.h>
-#include <mpix/op_jpeg.h>
+#include <mpix/operation.h>
+#include <mpix/pipeline.h>
+#include <mpix/sample.h>
 #include <mpix/stats.h>
-
-/**
- * @brief Represent the image currently being processed
- *
- * When adding operations to an image, the buffer is not converted yet.
- *
- * The struct fields are meant to reflect the buffer after it got converted, so after adding
- * operations, there might be a mismatch between the data format of the buffer and the .
- */
-struct mpix_image {
-	/** Linked list of operations to be performed on this image */
-	struct {
-		/** First element of the list */
-		struct mpix_base_op *first;
-		/** Last element of of the list */
-		struct mpix_base_op *last;
-	} ops;
-	/** Input or output buffer used with the conversion */
-	uint8_t *buffer;
-	/** Size of the input or output buffer */
-	size_t size;
-	/** Current pixel format of the image */
-	uint32_t fourcc;
-	/** Current width of the image */
-	uint16_t width;
-	/** Current height of the image */
-	uint16_t height;
-	/** In case an error occurred, this is set to a matching error code */
-	int err;
-	/** Whether to print a report once the image conversion is complete */
-	uint8_t flag_print_ops:1;
-};
+#include <mpix/types.h>
 
 /**
  * @brief Initialize an image from a memory buffer.
@@ -59,8 +25,12 @@ struct mpix_image {
  * @param height Height of the complete image in pixels.
  * @param format Format of data in the buffer as a four-character-code.
  */
-void mpix_image_from_buf(struct mpix_image *img, const uint8_t *buf, size_t size,
-			 uint16_t width, uint16_t height, uint32_t format);
+static inline void mpix_image_from_buf(struct mpix_image *img, const uint8_t *buffer, size_t size,
+				       const struct mpix_format *fmt)
+{
+	memset(img, 0x00, sizeof(*img));
+	img->buffer = buffer, img->size = size, img->fmt = *fmt;
+}
 
 /**
  * @brief Convert an image and store it into the output buffer.
@@ -70,29 +40,293 @@ void mpix_image_from_buf(struct mpix_image *img, const uint8_t *buf, size_t size
  * @param size Size of the buffer.
  * @return 0 on success or negative error code.
  */
-int mpix_image_to_buf(struct mpix_image *img, uint8_t *buf, size_t size);
+static inline int mpix_image_to_buf(struct mpix_image *img, uint8_t *buffer, size_t size)
+{
+	if (mpix_op_append(img, MPIX_OP_END, sizeof(*img->last_op), size) == NULL) return -ENOMEM;
+	img->last_op->ring.buffer = buffer;
+	return mpix_pipeline_process(img->first_op, img->buffer, img->size);
+}
 
 /**
- * @brief Free the intermediate buffers of an image.
+ * @brief Convert an image to a new pixel format.
  *
- * This is only required if not calling any export funcitons such as @ref mpix_image_to_buf.
+ * An operation is added to convert the image to a new pixel format.
+ * If the operation to convert the image from the current format to a new format does not exist,
+ * then the error flag is set, which can be accessed as @c img->err.
  *
- * @param img Image for which to release resources. Only internal buffers are freed.
- */
-void mpix_image_free(struct mpix_image *img);
-
-/**
- * @brief Collect statistics from an image.
- *
- * The image buffer is used to collect statistics into a @p stats structure.
- *
- * If the @p stats field @c nval is non-zero, this number of pixels will be collected randomly
- * from the image to generate statistics such as histogram and .
+ * In some cases, converting between two formats requires an intermediate conversion to RGB24.
  *
  * @param img Image to convert.
- * @param stats Statistics filled from the image.
+ * @param new_format A four-character-code (FOURCC) as defined by @c <zephyr/drivers/video.h>.
+ * @return 0 on success or negative error code.
  */
-void mpix_image_stats(struct mpix_image *img, struct mpix_stats *stats);
+static inline int mpix_image_convert(struct mpix_image *img, uint32_t new_format)
+{
+	int32_t p[] = { (int32_t)new_format };
+	return mpix_pipeline_add(img, MPIX_OP_CONVERT, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Convert an image to an indexed color format.
+ *
+ * An operation is added to convert the image to an indexed pixel format given the input palette.
+ *
+ * The size in bytes of the @p colors buffer is (3 << bit_depth).
+ *
+ * @param img Image to convert.
+ * @param fourcc Palette format Four Character Code, starting with PLT and then a digit.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_palette_encode(struct mpix_image *img, uint32_t fourcc)
+{
+	int32_t p[] = { (int32_t)fourcc };
+	return mpix_pipeline_add(img, MPIX_OP_PALETTE_ENCODE, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Convert an image from an indexed color format.
+ *
+ * An operation is added to convert the image from an indexed pixel format given the input palette.
+ * The palette must be set once per pipeline  before running it.
+ *
+ * @param img Image to convert.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_palette_decode(struct mpix_image *img)
+{
+	return mpix_pipeline_add(img, MPIX_OP_PALETTE_DECODE, NULL, 0);
+}
+
+/**
+ * @brief Set the palette of every operation currently in the pipeline.
+ *
+ * If the palette has up to 2 colors, 8 pixels are packed per byte.
+ * If the palette has up to 4 colors, 4 pixels are packed per byte.
+ * If the palette has up to 16 colors, 2 pixels are packed per byte.
+ * If the palette has up to 256 colors, 1 pixels are packed per byte.
+ *
+ * @see @ref mpix_pipeline_set_palette().
+ *
+ * @param img Image to assign a palette to.
+ * @param palette The color palette in RGB24 pixel format.
+ */
+static inline int mpix_image_set_palette(struct mpix_image *img, struct mpix_palette *palette)
+{
+	return mpix_pipeline_set_palette(img->first_op, palette);
+}
+
+/**
+ * @brief Convert an image from a bayer array format to RGB24.
+ *
+ * An operation is added to convert the image to RGB24 using the specified window size, such
+ * as 2x2 or 3x3.
+ *
+ * @note It is also possible to use @ref mpix_image_convert to convert from bayer to RGB24 but
+ *       this does not allow to select the window size.
+ *
+ * @param img Image to convert.
+ * @param window_size The window size for the conversion, usually 2 (faster) or 3 (higher quality).
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_debayer(struct mpix_image *img, uint32_t window_size)
+{
+	enum mpix_op_type type = (window_size == 1) ? MPIX_OP_DEBAYER_1X1 :
+				 (window_size == 2) ? MPIX_OP_DEBAYER_2X2 :
+				 (window_size == 3) ? MPIX_OP_DEBAYER_3X3 : MPIX_OP_INVAL;
+	return mpix_pipeline_add(img, type, NULL, 0);
+}
+
+/**
+ * @brief Encode an image to the QOI compressed image format
+ *
+ * @param img Image to convert to QOI format.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_qoi_encode(struct mpix_image *img)
+{
+	return mpix_pipeline_add(img, MPIX_OP_QOI_ENCODE, NULL, 0);
+}
+
+/**
+ * @brief Compressed an image to the JPEG format.
+ *
+ * @param img Image to convert to JPEG.
+ * @param quality The quality level to use for encoding.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_jpeg_encode(struct mpix_image *img, enum mpix_jpeg_quality quality)
+{
+	int32_t p[] = { quality };
+	return mpix_pipeline_add(img, MPIX_OP_JPEG_ENCODE, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Resize an image.
+ *
+ * An operation is added to change the image size. The aspect ratio is not preserved and the output
+ * image size is exactly the same as requested.
+ *
+ * @param img Image to convert.
+ * @param type Type of image resizing to apply.
+ * @param width The new width in pixels.
+ * @param height The new height in pixels.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_subsample(struct mpix_image *img, uint16_t width, uint16_t height)
+{
+	int32_t p[] = { width, height };
+	return mpix_pipeline_add(img, MPIX_OP_SUBSAMPLE, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Crop an image to a smaller region.
+ *
+ * An operation is added to crop the image to a specified rectangular region.
+ * The crop region must be within the bounds of the original image.
+ *
+ * @param img Image to crop.
+ * @param x_offset X coordinate of the top-left corner of the crop region.
+ * @param y_offset Y coordinate of the top-left corner of the crop region.
+ * @param crop_width Width of the crop region in pixels.
+ * @param crop_height Height of the crop region in pixels.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_crop(struct mpix_image *img, uint16_t x_offset, uint16_t y_offset,
+				  uint16_t crop_width, uint16_t crop_height)
+{
+	int32_t p[] = { x_offset, y_offset, crop_width, crop_height };
+	return mpix_pipeline_add(img, MPIX_OP_CROP, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Apply a sharpen operation to an image.
+ * @see MPIX_KERNEL_SHARPEN
+ * @param img Image to work on.
+ * @param level The pixel size of operation
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_sharpen(struct mpix_image *img, uint8_t level)
+{
+	int32_t p[] = { MPIX_KERNEL_SHARPEN };
+	enum mpix_op_type type = (level == 3) ? MPIX_OP_KERNEL_CONVOLVE_3X3 :
+				 (level == 5) ? MPIX_OP_KERNEL_CONVOLVE_5X5 : MPIX_OP_INVAL;
+	return mpix_pipeline_add(img, type, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Apply a denoise operation to an image.
+ * @param img Image to work on.
+ * @param level The pixel size of operation
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_denoise(struct mpix_image *img, uint8_t level)
+{
+	enum mpix_op_type type = (level == 3) ? MPIX_OP_KERNEL_DENOISE_3X3 :
+				 (level == 5) ? MPIX_OP_KERNEL_DENOISE_5X5 : MPIX_OP_INVAL;
+	return mpix_pipeline_add(img, type, NULL, 0);
+}
+
+/**
+ * @brief Apply an edge detection operation to an image.
+ * @see MPIX_KERNEL_EDGE_DETECT
+ * @param img Image to work on.
+ * @param level The pixel size of operation
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_edge_detect(struct mpix_image *img, uint8_t level)
+{
+	int32_t p[] = { MPIX_KERNEL_EDGE_DETECT };
+	enum mpix_op_type type = (level == 3) ? MPIX_OP_KERNEL_CONVOLVE_3X3 :
+				 (level == 5) ? MPIX_OP_KERNEL_CONVOLVE_5X5 : MPIX_OP_INVAL;
+	return mpix_pipeline_add(img, type, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Apply a gaussian blur operation to an image.
+ * @see MPIX_KERNEL_GAUSSIAN_BLUR
+ * @param img Image to work on.
+ * @param level The pixel size of operation
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_gaussian_blur(struct mpix_image *img, uint8_t level)
+{
+	int32_t p[] = { MPIX_KERNEL_GAUSSIAN_BLUR };
+	enum mpix_op_type type = (level == 3) ? MPIX_OP_KERNEL_CONVOLVE_3X3 :
+				 (level == 5) ? MPIX_OP_KERNEL_CONVOLVE_5X5 : MPIX_OP_INVAL;
+	return mpix_pipeline_add(img, type, p, ARRAY_SIZE(p));
+}
+
+/**
+ * @brief Initialize an image from a palette.
+ *
+ * This permits to process a color palette as if it was an RGB24 image, which leads to far fewer
+ * data to process than the full frame.
+ *
+ * @param img Image to convert.
+ * @param palette The color palette to use for the conversion.
+ */
+static inline void mpix_image_from_palette(struct mpix_image *img, const struct mpix_palette *palette)
+{
+	uint16_t n = 1 << mpix_palette_bit_depth(palette->fourcc);
+	struct mpix_format fmt = { .width = n, .height = 1, .fourcc = MPIX_FMT_RGB24 };
+	mpix_image_from_buf(img, palette->colors_rgb24, n * 3, &fmt);
+}
+
+/**
+ * @brief Convert an image and store it into a color palette.
+ *
+ * This is the reciproqual operation from @ref mpix_image_from_palette.
+ *
+ * @param img Image being processed.
+ * @param palette The color palette to use for the conversion.
+ * @return 0 on success or negative error code.
+ */
+static inline int mpix_image_to_palette(struct mpix_image *img, struct mpix_palette *palette)
+{
+	uint16_t n = 1 << mpix_palette_bit_depth(palette->fourcc);
+	return (n == 0) ? -EINVAL : mpix_image_to_buf(img, palette->colors_rgb24, n * 3);
+}
+
+/**
+ * @brief Optimize a color palette after the values from the image.
+ *
+ * This is performed on the original input image rather than the current state of the image.
+ * The strategy used is the "naive k-mean", and only a single pass. Repeat the function as
+ * desired to optimize more.
+ *
+ * @param img Input image sampled to generate the palette.
+ * @param palette The palette that will be updated with colors fitting the image better.
+ * @param num_samples Number of samples to take from the input image.
+ * @return 0 on success or negative error code.
+ */
+int mpix_image_optimize_palette(struct mpix_image *img, struct mpix_palette *palette,
+				uint16_t num_samples);
+
+/**
+ * @brief Free the resources of an image.
+ *
+ * This frees all intermediate buffers allocated automatically, but not the @c buffer field of
+ * @p img which is managed by the caller.
+ *
+ * @param img Image to free.
+ */
+static inline void mpix_image_free(struct mpix_image *img)
+{
+	mpix_pipeline_free(img->first_op);
+	img->first_op = img->last_op = NULL;
+	memset(img->ctrls, 0x00, sizeof(img->ctrls));
+}
+
+/**
+ * @brief Get the input format of an image, matching the inage input buffer
+ *
+ * @param img The image to inspect.
+ * @return The apropriate image format struct.
+ */
+static inline struct mpix_format *mpix_image_format(struct mpix_image *img)
+{
+	return img->first_op == NULL ? &img->fmt : &img->first_op->fmt;
+}
 
 /**
  * @brief Collect a random RGB pixel from an image.
@@ -111,268 +345,99 @@ void mpix_image_stats(struct mpix_image *img, struct mpix_stats *stats);
  * @param img Image to sample a value from.
  * @param rgb Buffer to 3 bytes filled with the red, green, blue value from the image.
  */
-int mpix_image_sample_random_rgb(struct mpix_image *img, uint8_t rgb[3]);
+static inline int mpix_image_sample_random_rgb(struct mpix_image *img, uint8_t rgb[3])
+{
+	return mpix_sample_random_rgb(img->buffer, mpix_image_format(img), rgb);
+}
 
 /**
- * @brief Convert an image to a new pixel format.
+ * @brief Collect statistics from an image.
  *
- * An operation is added to convert the image to a new pixel format.
- * If the operation to convert the image from the current format to a new format does not exist,
- * then the error flag is set, which can be accessed as @c img->err.
+ * The image buffer is used to collect statistics into a @p stats structure.
  *
- * In some cases, converting between two formats requires an intermediate conversion to RGB24.
+ * If the @p stats field @c nval is non-zero, this number of pixels will be collected randomly
+ * from the image to generate statistics such as histogram and .
  *
  * @param img Image to convert.
- * @param new_format A four-character-code (FOURCC) as defined by @c <zephyr/drivers/video.h>.
- * @return 0 on success or negative error code.
+ * @param stats Statistics filled from the image.
  */
-int mpix_image_convert(struct mpix_image *img, uint32_t new_format);
+static inline void mpix_image_stats(struct mpix_image *img, struct mpix_stats *stats)
+{
+	mpix_stats_from_buf(stats, img->buffer, mpix_image_format(img));
+}
 
 /**
- * @brief Convert an image to an indexed color format.
+ * @brief Set a control to a pipeline
  *
- * An operation is added to convert the image to an indexed pixel format given the input palette.
+ * This is to be set after pipeline elements are added, so that their respective controls are
+ * added to the image.
  *
- * If the palette has up to 2 colors, 8 pixels are packed per byte.
- * If the palette has up to 4 colors, 4 pixels are packed per byte.
- * If the palette has up to 16 colors, 2 pixels are packed per byte.
- * If the palette has up to 256 colors, 1 pixels are packed per byte.
- *
- * @param img Image to convert.
- * @param palette The color palette to use for the conversion.
- * @return 0 on success or negative error code.
+ * @param img Image to apply the control to
+ * @param cid Control ID to set if present
+ * @param val Value to set this control to
+ * @return 0 on sucess, or negative error code
  */
-int mpix_image_palettize(struct mpix_image *img, struct mpix_palette *palette);
+static inline int mpix_image_ctrl_value(struct mpix_image *img, enum mpix_control_id cid,
+					    int32_t value)
+{
+	if (cid > MPIX_NB_CID) return -ERANGE;
+	if (img->ctrls[cid] == NULL) return -ENOENT;
+	img->ctrls[cid][0] = value;
+	return 0;
+}
 
 /**
- * @brief Convert an image from an indexed color format.
+ * @brief Get the size of a control ID
  *
- * An operation is added to convert the image from an indexed pixel format given the input palette.
+ * Pipeline control parameters can sometimes contain multiple values in an array.
+ * See @ref mpix_image_ctrl_array for how to set multiple values at once.
  *
- * If the palette has up to 2 colors, 8 pixels are packed per byte.
- * If the palette has up to 4 colors, 4 pixels are packed per byte.
- * If the palette has up to 16 colors, 2 pixels are packed per byte.
- * If the palette has up to 256 colors, 1 pixels are packed per byte.
- *
- * @param img Image to convert.
- * @param palette The color palette to use for the conversion.
- * @return 0 on success or negative error code.
+ * @param cid The control ID to probe.
+ * @return The size in bytes.
  */
-int mpix_image_depalettize(struct mpix_image *img, struct mpix_palette *palette);
+static inline size_t mpix_image_ctrl_size(enum mpix_control_id cid)
+{
+	switch (cid) {
+	case MPIX_CID_COLOR_MATRIX: return 9;
+	default: return 1;
+	}
+}
 
 /**
- * @brief Initialize an image from a palette.
+ * @brief Set a control to a pipeline
  *
- * This permits to process a color palette as if it was an RGB24 image, which leads to far fewer
- * data to process than the full frame.
+ * This is to be set after pipeline elements are added, so that their respective controls are
+ * added to the image.
  *
- * @param img Image to convert.
- * @param palette The color palette to use for the conversion.
+ * @param img Image to apply the control to
+ * @param cid Control ID to set if present
+ * @param val Value to set this control to
+ * @return 0 on sucess, or negative error code
  */
-void mpix_image_from_palette(struct mpix_image *img, struct mpix_palette *palette);
+static inline int mpix_image_ctrl_array(struct mpix_image *img, enum mpix_control_id cid,
+					    int32_t *array)
+{
+	if (cid > MPIX_NB_CID) return -ERANGE;
+	if (img->ctrls[cid] == NULL) return -ENOENT;
+	memcpy(img->ctrls[cid], array, mpix_image_ctrl_size(cid));
+	return 0;
+}
 
 /**
- * @brief Convert an image and store it into a color palette.
+ * @brief Return the output buffer and its size, resetting it to zero.
  *
- * This is the reciproqual operation from @ref mpix_image_from_palette.
+ * This clears the output buffer while preserving all the operations of the pipeline for
+ * another round to happen after it.
  *
- * @param img Image being processed.
- * @param palette The color palette to use for the conversion.
- * @return 0 on success or negative error code.
+ * @param img Image to flush the output.
+ * @param size Pointer set to the size of the output buffer.
+ * @return Pointer to the buffer or NULL.
  */
-int mpix_image_to_palette(struct mpix_image *img, struct mpix_palette *palette);
-
-/**
- * @brief Update the color palette after an input image buffer.
- *
- * This is performed on the original input image rather than the current state of the image.
- * The strategy used is the "naive k-mean", and only a single pass. Repeat the function several
- * times to improve accuracy.
- *
- * @param img Input image sampled to generate the palette.
- * @param palette The palette that will be updated with colors fitting the image better.
- * @param num_samples Number of samples to take from the input image.
- * @return 0 on success or negative error code.
- */
-int mpix_image_optimize_palette(struct mpix_image *img, struct mpix_palette *palette,
-				uint16_t num_samples);
-
-/**
- * @brief Convert an image from a bayer array format to RGB24.
- *
- * An operation is added to convert the image to RGB24 using the specified window size, such
- * as 2x2 or 3x3.
- *
- * @note It is also possible to use @ref mpix_image_convert to convert from bayer to RGB24 but
- *       this does not allow to select the window size.
- *
- * @param img Image to convert.
- * @param window_size The window size for the conversion, usually 2 (faster) or 3 (higher quality).
- * @return 0 on success or negative error code.
- */
-int mpix_image_debayer(struct mpix_image *img, uint32_t window_size);
-
-/**
- * @brief Encode an image to the QOI compressed image format
- *
- * @param img Image to convert to QOI format.
- * @return 0 on success or negative error code.
- */
-int mpix_image_qoi_encode(struct mpix_image *img);
-
-/**
- * @brief Compressed an image to the JPEG format.
- *
- * @param img Image to convert to JPEG.
- * @param quality The quality level to use for encoding.
- * @return 0 on success or negative error code.
- */
-int mpix_image_jpeg_encode(struct mpix_image *img, enum mpix_jpeg_quality quality);
-
-/**
- * @brief Resize an image.
- *
- * An operation is added to change the image size. The aspect ratio is not preserved and the output
- * image size is exactly the same as requested.
- *
- * @param img Image to convert.
- * @param type Type of image resizing to apply.
- * @param width The new width in pixels.
- * @param height The new height in pixels.
- * @return 0 on success or negative error code.
- */
-int mpix_image_resize(struct mpix_image *img, enum mpix_resize_type type,
-		      uint16_t width, uint16_t height);
-
-/**
- * @brief Crop an image to a smaller region.
- *
- * An operation is added to crop the image to a specified rectangular region.
- * The crop region must be within the bounds of the original image.
- *
- * @param img Image to crop.
- * @param x_offset X coordinate of the top-left corner of the crop region.
- * @param y_offset Y coordinate of the top-left corner of the crop region.
- * @param crop_width Width of the crop region in pixels.
- * @param crop_height Height of the crop region in pixels.
- * @return 0 on success or negative error code.
- */
-int mpix_image_crop(struct mpix_image *img, uint16_t x_offset, uint16_t y_offset,
-		    uint16_t crop_width, uint16_t crop_height);
-
-/**
- * @brief Apply a kernel operation on an image.
- *
- * Kernel operations are working on small blocks of typically 3x3 or 5x5 pixels, repeated over the
- * entire image to apply a desired effect on an image.
- *
- * @param img Image to convert.
- * @param kernel_type The type of kernel to apply as defined in @ref mpix_op_kernel_h
- * @param kernel_sz The size of the kernel operaiton, usually 3 or 5.
- * @return 0 on success or negative error code.
- */
-int mpix_image_kernel(struct mpix_image *img, uint32_t kernel_type, int kernel_sz);
-
-/**
- * @brief Apply an Image Signal Processing (ISP) correction operation to an image.
- *
- * Kernel operations are working on small blocks of typically 3x3 or 5x5 pixels, repeated over the
- * entire image to apply a desired effect on an image.
- *
- * @param img Image to convert.
- * @param type The type of ISP to apply as defined in @ref mpix_op_correction_h
- * @param corr The correction level to apply.
- * @return 0 on success or negative error code.
- */
-int mpix_image_correction(struct mpix_image *img, uint32_t type, union mpix_correction_any *corr);
-
-/**
- * @brief Print an image using higher quality TRUECOLOR terminal escape codes.
- *
- * @param img Image to print.
- */
-void mpix_image_print_truecolor(struct mpix_image *img);
-
-/**
- * @brief Print an image using higher speed 256COLOR terminal escape codes.
- *
- * @param img Image to print.
- */
-void mpix_image_print_256color(struct mpix_image *img);
-
-/**
- * @brief Print details about an image and its current list of operations.
- *
- * @param img Image to detail.
- */
-void mpix_image_print_ops(struct mpix_image *img);
-
-/**
- * @brief Print a hexdump of the image to the console for debug purpose.
- *
- * @param img Image to print.
- */
-void mpix_image_hexdump(struct mpix_image *img);
-
-/**
- * @brief Add a operation processing step to an image.
- * @internal
- *
- * @note This is a low-level function only needed to implement new operations.
- *
- * The operation step will not be processed immediately, but rather added to a linked list of
- * operations that will be performed at runtime.
- *
- * @param img Image to which add a processing step.
- * @param template Stream processing step to apply to the image.
- * @param op_sz Size of the operation struct to allocate.
- * @param buf_sz Size of the input buffer to allocate for this operation.
- * @param threshold Minimum number of bytes the operation needs to run one cycle.
- * @return 0 on success or negative error code.
- */
-int mpix_image_append_op(struct mpix_image *img, const struct mpix_base_op *template,
-			 size_t op_sz, size_t buf_sz, size_t threshold);
-
-/**
- * @brief Add a operation processing step to an image for uncompressed input data.
- * @internal
- *
- * @note This is a low-level function only needed to implement new operations.
- *
- * The operation step will not be processed immediately, but rather added to a linked list of
- * operations that will be performed at runtime.
- *
- * Details such as buffer size or threshold value are deduced from the stream.
- *
- * @param img Image to which add a processing step.
- * @param template Stream processing step to apply to the image.
- * @param op_sz Size of the operation struct to allocate.
- * @return 0 on success or negative error code.
- */
-int mpix_image_append_uncompressed_op(struct mpix_image *img, const struct mpix_base_op *op,
-				      size_t op_sz);
-
-/**
- * @brief Perform all the processing added to the
- * @internal
- *
- * @note This is a low-level function only needed to implement new operations.
- *
- * This is where all the image processing happens. The processing steps are not executed while they
- * are added to the pipeline, but only while this function is called.
- *
- * @param img Image to which one or multiple processing steps were added.
- * @return 0 on success or negative error code.
- */
-int mpix_image_process(struct mpix_image *img);
-
-/**
- * @brief Set the error code of the image an error on the image
- * @internal
- *
- * @param img Image to which one or multiple processing steps were added.
- * @return 0 on success or negative error code.
- */
-int mpix_image_error(struct mpix_image *img, int err);
+static inline int mpix_image_read_output(struct mpix_image *img, const uint8_t **buf, size_t *size)
+{
+	if (img->last_op == NULL) return -EINVAL;
+	mpix_op_input_all(img->last_op, buf, size);
+	return (*size == 0) ? -ENOBUFS : 0;
+}
 
 #endif /** @} */

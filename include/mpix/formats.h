@@ -7,8 +7,12 @@
 #ifndef MPIX_FORMAT_H
 #define MPIX_FORMAT_H
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <mpix/types.h>
+#include <mpix/utils.h>
 
 /**
  * @brief Generate a string out of a pixel format.
@@ -37,16 +41,42 @@
 	((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
 
 /**
- * @brief Callback for the application to add custom pixel formats
+ * @brief Convert an image and store it into a color palette.
  *
- * If a pixel format is not known by MPIX, this function is called to resolve the average number of
- * bits per pixel. It is defined as weak so that applications can define their own variant and
- * provide their own pixel format definition.
+ * This is the reciproqual operation from @ref mpix_image_from_palette.
  *
- * @param fourcc Four character code to query.
- * @return Average number of bits per pixel.
+ * @param img Image being processed.
+ * @param fourcc The pixel format of the palette
+ * @return 0 on success or negative error code.
  */
-uint8_t mpix_bits_per_pixel_cb(uint32_t fourcc);
+static inline uint8_t mpix_palette_bit_depth(uint32_t fourcc)
+{
+	char *str = MPIX_FOURCC_TO_STR(fourcc);
+
+	if (strncmp(str, "PLT", 3) != 0 || !IN_RANGE(str[3], '1', '9')) {
+		return 0;
+	}
+
+	return str[3] - '0';
+}
+
+/**
+ * @brief Convert an image and store it into a color palette.
+ *
+ * This is the reciproqual operation from @ref mpix_image_from_palette.
+ *
+ * @param img Image being processed.
+ * @param depth The color palette to use for the conversion.
+ * @return 0 on success or negative error code.
+ */
+static inline uint32_t mpix_palette_fourcc(uint8_t bit_depth)
+{
+	if (!IN_RANGE(bit_depth, 1, 9)) {
+		return 0;
+	}
+
+	return MPIX_FOURCC('P', 'L', 'T', '0' + bit_depth);
+}
 
 /**
  * @name RGB formats
@@ -330,10 +360,7 @@ uint8_t mpix_bits_per_pixel_cb(uint32_t fourcc);
 /**
  * @brief Get the average number of bits per pixel of a pixel format.
  *
- * For compressed formats, the convention is that the result is 0.
- *
- * This function calls @ref mpix_bits_per_pixel_cb in case a format is not found, which the user
- * can override (weak alias) to add support for application-specific formats.
+ * For compressed/variablle pitch formats, the convention is that the result is 0.
  *
  * @return Average number of bits per pixel.
  */
@@ -386,9 +413,38 @@ static inline uint8_t mpix_bits_per_pixel(uint32_t fourcc)
 	case MPIX_FMT_JPEG:
 	case MPIX_FMT_QOI:
 		return 0;
+
+	/* Unhandled format */
 	default:
-		return mpix_bits_per_pixel_cb(fourcc);
+		return 0;
 	}
+}
+
+/**
+ * @brief Get the pitch for a given pixel format
+ *
+ * This assumes a format without padding, and returns 0 for variable pitch formats, such as
+ * compressed formats.
+ *
+ * @return Number of bytes used to store a line of this format.
+ */
+static inline size_t mpix_format_pitch(const struct mpix_format *fmt)
+{
+	return mpix_bits_per_pixel(fmt->fourcc) * fmt->width / BITS_PER_BYTE;
+}
+
+/**
+ * @brief Get the pixel format of the buffer if looking one line below
+ *
+ * @return The new four character code (FourCC) or zero if not a bayer format.
+ */
+static inline uint32_t mpix_format_line_down(uint32_t fourcc)
+{
+	return	fourcc == MPIX_FMT_SRGGB8 ? MPIX_FMT_SGBRG8 :
+		fourcc == MPIX_FMT_SBGGR8 ? MPIX_FMT_SGRBG8 :
+		fourcc == MPIX_FMT_SGBRG8 ? MPIX_FMT_SRGGB8 :
+		fourcc == MPIX_FMT_SGRBG8 ? MPIX_FMT_SBGGR8 :
+		fourcc;
 }
 
 #endif /** @} */

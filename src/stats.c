@@ -8,18 +8,15 @@
 #include <mpix/image.h>
 #include <mpix/stats.h>
 #include <mpix/sample.h>
-#include <mpix/print.h>
-#include <mpix/op_convert.h>
 
 /* Arbitrary value estimated good enough for most cases */
 #define MPIX_STATS_DEFAULT_NVALS 1000
 
-void mpix_stats_from_buf(struct mpix_stats *stats,
-			 const uint8_t *buf, uint16_t width, uint16_t height, uint32_t fourcc)
+void mpix_stats_from_buf(struct mpix_stats *stats, const uint8_t *buf, struct mpix_format *fmt)
 {
 	uint32_t rgb_sum[3] = {0};
 	uint16_t nvals;
-	int ret;
+	int err;
 
 	/* Reset the statistics to initial values */
 	nvals = stats->nvals > 0 ? stats->nvals : MPIX_STATS_DEFAULT_NVALS;
@@ -31,10 +28,8 @@ void mpix_stats_from_buf(struct mpix_stats *stats,
 		uint8_t rgb_value[3];
 		uint8_t thres = 0xf0;
 
-		ret = mpix_sample_random_rgb(buf, width, height, fourcc, rgb_value);
-		if (ret < 0) {
-			return;
-		}
+		err = mpix_sample_random_rgb(buf, fmt, rgb_value);
+		if (err) return;
 
 		/* Histogram statistics by ignoring the red/green/blue value */
 		stats->y_histogram[rgb_value[0] >> 2]++;
@@ -69,26 +64,11 @@ void mpix_stats_from_buf(struct mpix_stats *stats,
 	stats->rgb_average[2] = rgb_sum[2] / nvals;
 }
 
-void mpix_image_stats(struct mpix_image *img, struct mpix_stats *stats)
-{
-	mpix_stats_from_buf(stats, img->buffer, img->width, img->height, img->fourcc);
-}
-
-void mpix_stats_print(struct mpix_stats *stats)
-{
-	uint8_t *rgb = stats->rgb_average;
-
-	mpix_port_printf("Average #%02x%02x%02x ", rgb[0], rgb[1], rgb[2]);
-	mpix_print_truecolor(rgb, rgb);
-	mpix_port_printf(" \x1b[m for %u values sampled\n", stats->nvals);
-	mpix_print_y_hist(stats->y_histogram, ARRAY_SIZE(stats->y_histogram), 10);
-}
-
 uint8_t mpix_stats_get_y_mean(struct mpix_stats *stats)
 {
 	uint32_t nvals = 0;
 
-	for (int i = 0; i < ARRAY_SIZE(stats->y_histogram); i++) {
+	for (size_t i = 0; i < ARRAY_SIZE(stats->y_histogram); i++) {
 		nvals += stats->y_histogram[i];
 
 		if (nvals >= stats->nvals / 2) {

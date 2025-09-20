@@ -3,28 +3,17 @@
 #include <errno.h>
 
 #include <mpix/auto.h>
+#include <mpix/port.h>
 #include <mpix/stats.h>
 #include <mpix/utils.h>
-#include <mpix/port.h>
-#include <mpix/op_correction.h>
+#include <mpix/low_level.h>
 
-int mpix_auto_exposure_init(struct mpix_auto_ctrls *ctrls, void *dev)
+void mpix_auto_init(struct mpix_auto_ctrls *ctrls)
 {
-	int ret;
-
-	ctrls->dev = dev;
 	/* Initialize default AE target if not set */
 	if (ctrls->ae_target == 0) {
 		ctrls->ae_target = 128; /* Mid-gray default */
 	}
-
-	ret = mpix_port_init_exposure(dev, &ctrls->exposure_level, &ctrls->exposure_max);
-	if (ret < 0) {
-		MPIX_ERR("Failed to initialize exposure control");
-		return ret;
-	}
-
-	return 0;
 }
 
 #ifndef CONFIG_MPIX_AEC_THRESHOLD
@@ -62,11 +51,13 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 			/* Over-exposed: reduce */
 			val = val * (100 - dyn_rate) / 100;
 			if (val < 1) val = 1;
-			MPIX_DBG("AE over exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+			MPIX_DBG("AE over exp mean=%u tgt=%u err=%d rate=%d%% new=%d",
+				 mean, target, error, dyn_rate, val);
 		} else {
 			/* Under-exposed: increase */
 			val = val * (100 + dyn_rate) / 100;
-			MPIX_DBG("AE under exp mean=%u tgt=%u err=%d rate=%d%% new=%d", mean, target, error, dyn_rate, val);
+			MPIX_DBG("AE under exp mean=%u tgt=%u err=%d rate=%d%% new=%d",
+				 mean, target, error, dyn_rate, val);
 		}
 	}
 
@@ -74,12 +65,7 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 	ctrls->exposure_level = CLAMP(val, 1, ctrls->exposure_max);
 
 	MPIX_DBG("New exposure value: %u/%u", ctrls->exposure_level, ctrls->exposure_max);
-
-	if (ctrls->dev != NULL) {
-		mpix_port_set_exposure(ctrls->dev, ctrls->exposure_level);
-	}
 }
-
 
 #ifndef CONFIG_MPIX_BLC_THRESHOLD
 /** @brief Number of pixels to cross before setting the minimum value */
@@ -88,27 +74,27 @@ void mpix_auto_exposure_control(struct mpix_auto_ctrls *ctrls, struct mpix_stats
 
 void mpix_auto_black_level(struct mpix_auto_ctrls *ctrls, struct mpix_stats *stats)
 {
-	union mpix_correction_any *corr = (void *)&ctrls->correction.black_level;
 	uint16_t sum = 0;
 
-	ctrls->correction.black_level.level = 0;
+	ctrls->black_level = 0;
 
 	/* Seek the first bucket that */
 	for (size_t i = 0; i < ARRAY_SIZE(stats->y_histogram); i++) {
 		sum += stats->y_histogram[i];
 
 		if (sum > CONFIG_MPIX_BLC_THRESHOLD) {
-			ctrls->correction.black_level.level = stats->y_histogram_vals[i];
+			ctrls->black_level = stats->y_histogram_vals[i];
 			break;
 		}
 	}
 
 	/* Update the statistics so that they reflect the change of black level */
-	mpix_correction_black_level_raw8(stats->y_histogram_vals, stats->y_histogram_vals,
-					 sizeof(stats->y_histogram_vals), 0, corr);
-	mpix_correction_black_level_rgb24(stats->rgb_average, stats->rgb_average, 1, 0, corr);
+	mpix_correct_black_level_raw8(stats->y_histogram_vals, stats->y_histogram_vals,
+				      sizeof(stats->y_histogram_vals), ctrls->black_level);
+	mpix_correct_black_level_raw8(stats->rgb_average, stats->rgb_average,
+				      sizeof(stats->rgb_average), ctrls->black_level);
 
-	MPIX_DBG("New black level: %u", corr->black_level.level);
+	MPIX_DBG("New black level: %u", ctrls->black_level);
 }
 
 /*
@@ -120,17 +106,17 @@ void mpix_auto_black_level(struct mpix_auto_ctrls *ctrls, struct mpix_stats *sta
  */
 void mpix_auto_white_balance(struct mpix_auto_ctrls *ctrls, struct mpix_stats *stats)
 {
-	union mpix_correction_any *corr = (void *)&ctrls->correction.white_balance;
 	uint16_t r = MAX(1, stats->rgb_average[0]);
 	uint16_t g = MAX(1, stats->rgb_average[1]);
 	uint16_t b = MAX(1, stats->rgb_average[2]);
 
-	corr->white_balance.red_level = (g << MPIX_CORRECTION_SCALE_BITS) / r;
-	corr->white_balance.blue_level = (g << MPIX_CORRECTION_SCALE_BITS) / b;
+	ctrls->red_balance_q10 = (g << 10) / r;
+	ctrls->blue_balance_q10 = (g << 10) / b;
 
 	/* Update the statistics so that they reflect the change of white balance */
-	mpix_correction_white_balance_rgb24(stats->rgb_average, stats->rgb_average, 1, 0, corr);
+	mpix_correct_white_balance_rgb24(stats->rgb_average, stats->rgb_average, 1,
+					 ctrls->red_balance_q10, ctrls->blue_balance_q10);
 
-	MPIX_DBG("New red level: %u", corr->white_balance.red_level);
-	MPIX_DBG("New blue level: %u", corr->white_balance.blue_level);
+	MPIX_DBG("New red balance: %u", ctrls->red_balance_q10);
+	MPIX_DBG("New blue balance: %u", ctrls->blue_balance_q10);
 }

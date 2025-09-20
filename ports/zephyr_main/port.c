@@ -25,34 +25,3 @@ uint32_t mpix_port_get_uptime_us(void)
 {
 	return k_cycle_get_64() * 1000 * 1000 / sys_clock_hw_cycles_per_sec();
 }
-
-void mpix_port_printf(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-}
-
-int mpix_port_init_exposure(void *dev, int32_t *def, int32_t *max)
-{
-	struct video_ctrl_query cq = {.id = VIDEO_CID_EXPOSURE, .dev = dev};
-	int ret;
-
-	ret = video_query_ctrl(&cq);
-	if (ret != 0) {
-		return ret;
-	}
-
-	*def = cq.range.def;
-	*max = cq.range.max;
-
-	return 0;
-}
-
-int mpix_port_set_exposure(void *dev, int32_t val)
-{
-	return video_set_ctrl(
-		dev, &(struct video_control){.id = VIDEO_CID_EXPOSURE, .val = val});
-}
