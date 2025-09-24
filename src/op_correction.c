@@ -28,6 +28,10 @@ void mpix_correction_black_level_raw8(const uint8_t *src, uint8_t *dst, uint16_t
 		*dst = MAX(0, *src - level);
 	}
 }
+MPIX_REGISTER_CORRECTION_OP(blc_grey, mpix_correction_black_level_raw8, BLACK_LEVEL, GREY);
+
+#if 0
+
 MPIX_REGISTER_CORRECTION_OP(blc_bggr8, mpix_correction_black_level_raw8, BLACK_LEVEL, BGGR8);
 MPIX_REGISTER_CORRECTION_OP(blc_sbggr8, mpix_correction_black_level_raw8, BLACK_LEVEL, SBGGR8);
 MPIX_REGISTER_CORRECTION_OP(blc_srggb8, mpix_correction_black_level_raw8, BLACK_LEVEL, SRGGB8);
@@ -188,9 +192,12 @@ void mpix_correction_color_matrix_rgb24(const uint8_t *src, uint8_t *dst, uint16
 	}
 }
 MPIX_REGISTER_CORRECTION_OP(ccm_rgb24, mpix_correction_color_matrix_rgb24, COLOR_MATRIX, RGB24);
+#endif
 
+#if 0
 static const struct mpix_correction_op **mpix_correction_op_list =
 	(const struct mpix_correction_op *[]){MPIX_LIST_CORRECTION_OP};
+#endif
 
 int mpix_image_correction(struct mpix_image *img, uint32_t type, union mpix_correction_any *corr)
 {
@@ -198,6 +205,7 @@ int mpix_image_correction(struct mpix_image *img, uint32_t type, union mpix_corr
 	struct mpix_correction_op *new;
 	int ret;
 
+#if 0
 	for (size_t i = 0; mpix_correction_op_list[i] != NULL; i++) {
 		const struct mpix_correction_op *tmp = mpix_correction_op_list[i];
 
@@ -207,6 +215,8 @@ int mpix_image_correction(struct mpix_image *img, uint32_t type, union mpix_corr
 			break;
 		}
 	}
+#endif
+    op = &mpix_correction_op_blc_grey;
 
 	if (op == NULL) {
 		MPIX_ERR("ISP operation %u on %s data not found",

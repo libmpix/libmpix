@@ -135,7 +135,9 @@ int mpix_image_process(struct mpix_image *img)
 	mpix_op_run(img->ops.first);
 	img->size = mpix_ring_tailroom(&img->ops.last->ring);
 
+#if 0
 	mpix_image_print_ops(img);
+#endif
 
 	mpix_image_free(img);
 
@@ -188,7 +190,9 @@ int mpix_image_to_buf(struct mpix_image *img, uint8_t *buffer, size_t sz)
 	return ret;
 }
 
+#if 0
 void mpix_image_hexdump(struct mpix_image *img)
 {
 	mpix_hexdump(img->buffer, img->size, img->width, img->height, img->fourcc);
 }
+#endif
