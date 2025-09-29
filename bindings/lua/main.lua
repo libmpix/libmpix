@@ -5,7 +5,6 @@ print("hello world!")
 
 -- generate a map of the mpix module
 for k, v in pairs(mpix) do
-  print()
   print(type(v) .. ":" .. k)
   if type(v) == "table" then
     for kk, vv in pairs(v) do print("- " .. kk) end
@@ -34,19 +33,13 @@ mpix.op.convert(mpix.fmt.RGB24)
 mpix.op.convert(mpix.fmt.YUYV)
 mpix.op.convert(mpix.fmt.RGB24)
 
--- Finally prepare the lua callback
+-- Finally add an operation for the function callback
 mpix.op.callback(102, 1)
 
--- Show the pipeline topology before reading
-print()
-mpix.dump()
-
 -- Read the data from the pipeline chunk by chunk
-print()
 mpix.run(function (buf) print("[buffer] " .. buf) end)
 
--- Show the pipeline topology after reading
-print()
+-- Show the pipeline topology
 mpix.dump()
 
 -- Reset the image struct, in case the caller is not taking care of that

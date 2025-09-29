@@ -13,14 +13,14 @@ process images, as "convolution" is a common operation between kernel processing
 
 ### How to perform kernel processing with libmpix
 
-
 First load a buffer into an image struct, in one of the supported input format.
 See @ref supported_operations for the list of all supported operations for each kernel.
 
 ```c
 struct mpix_image img;
+struct mpix_format fmt = { .width = 640, .height = 480, .fourcc = MPIX_FMT_RGB24 };
 
-mpix_image_from_buf(&img, buf, sizeof(buf), 640, 480, MPIX_FMT_RGB24);
+mpix_image_from_buf(&img, buf, sizeof(buf), &fmt);
 ```
 
 Then, select the type of kernel operation you wish to perform on the image:
@@ -34,5 +34,5 @@ Then, select the type of kernel operation you wish to perform on the image:
 Then call the operation on the image. For instance using the denoise kernel:
 
 ```c
-mpix_image_kernel(&img, MPIX_KERNEL_DENOISE);
+mpix_image_kernel_convolve_3x3(&img, MPIX_KERNEL_GAUSSIAN_BLUR);
 ```

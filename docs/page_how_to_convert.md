@@ -11,8 +11,9 @@ First load a buffer into an image struct, specifying the pixel format:
 
 ```c
 struct mpix_image img;
+struct mpix_format fmt = { .width = 640, .height = 480, .fourcc = MPIX_FMT_RGB24 };
 
-mpix_image_from_buf(&img, buf, sizeof(buf), 640, 480, MPIX_FMT_RGB24);
+mpix_image_from_buf(&img, buf, sizeof(buf), &fmt);
 ```
 
 Then convert the image to the destination format:

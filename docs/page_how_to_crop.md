@@ -23,13 +23,13 @@ int mpix_image_crop(struct mpix_image *img, uint16_t x_offset, uint16_t y_offset
 ### Command Line Interface
 
 ```bash
-mpix read <input_file> <width> <format> ! crop <x>,<y>,<width>,<height> ! write <output_file>
+mpix read <input_file> <width> <format> ! crop <x> <y> <width> <height> ! write <output_file>
 ```
 
 **Example:**
 ```bash
 # Crop a 4x4 region starting at position (2,2) from an 8x8 RGB24 image
-mpix read input.rgb24 8 RGB24 ! crop 2,2,4,4 ! write cropped.rgb24
+mpix read input.rgb24 8 RGB24 ! crop 2 2 4 4 ! write cropped.rgb24
 ```
 
 ## Supported Formats
@@ -75,11 +75,11 @@ The crop operation is optimized for performance:
 #include <mpix/image.h>
 
 struct mpix_image img;
-uint8_t input_buffer[/* input data */];
-uint8_t output_buffer[/* output data */];
+uint8_t input_buffer[] = {/* input data */};
+uint8_t output_buffer[] = {/* output data */};
 
 // Initialize image
-mpix_image_from_buf(&img, input_buffer, sizeof(input_buffer), 
+mpix_image_from_buf(&img, input_buffer, sizeof(input_buffer),
                     640, 480, MPIX_FMT_RGB24);
 
 // Crop a 320x240 region from the center

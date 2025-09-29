@@ -44,17 +44,26 @@ light condition manually:
   sensitivity. Contrasts will appear more natural and accurate.
 
 ```c
-struct mpix_correction_any bl = {.black_level = {.level = 0x0f}};
-struct mpix_correction_any wb = {.white_balance = {.red_level = 2048, .blue_level = 2048}};
-struct mpix_correction_any gc = {.gamma = {.level = 240}};
+struct mpix_correction_any bl = { .black_level = { .level = 0x0f } };
+struct mpix_correction_any wb = { .white_balance = { .red_level = 2048, .blue_level = 2048 } };
+struct mpix_correction_any gc = { .gamma = { .level = 240 } };
 ```
 
 Then, apply each step of the correction you wish to the image:
 
 ```c
-mpix_image_correction(&img, MPIX_CORRECTION_BLACK_LEVEL, &bl);
-mpix_image_correction(&img, MPIX_CORRECTION_WHITE_BALANCE, &wb);
-mpix_image_correction(&img, MPIX_CORRECTION_GAMMA, &gc);
+mpix_image_correct_black_level(&img);
+mpix_image_correct_white_balance(&img);
+mpix_image_correct_gamma(&img);
+```
+
+It is now possible to apply extra correction to it (where `1 << 10` is to convert to fixed-point):
+
+```c
+mpix_image_ctrl_value(&img, MPIX_CID_BLACK_LEVEL, 0x0f);
+mpix_image_ctrl_value(&img, MPIX_CID_RED_BALANCE, 1.3 * (1 << 10));
+mpix_image_ctrl_value(&img, MPIX_CID_BLUE_BALANCE, 1.2 * (1 << 10));
+mpix_image_ctrl_value(&img, MPIX_CID_GAMMA, 0.6 * (1 << 10));
 ```
 
 The image will now be corrected using each of the steps specified.

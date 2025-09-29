@@ -1,8 +1,7 @@
 @page getting_started Getting Started
 @brief Building and running libmpix in various contexts
 
-Using libmpix in a project
---------------------------
+## Using libmpix in a project
 
 **libmpix** is meant as a portable library, and various platforms are supported out of the box,
 with an example repo for each:

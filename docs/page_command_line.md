@@ -20,19 +20,34 @@ represents a pipe between two operations:
 [1]: https://gstreamer.freedesktop.org/documentation/tools/gst-launch.html
 
 ```
-Available commands:
- mpix [-v] read <file> [<width> <format>] ! ...
- mpix [-v] ... ! write <file>
- mpix [-v] ... ! convert <format> ! ...
- mpix [-v] ... ! debayer <size> ! ...
- mpix [-v] ... ! palette <bit_depth> <optimization_cycles> ! ...
- mpix [-v] ... ! palettize ! ...
- mpix [-v] ... ! depalettize ! ...
- mpix [-v] ... ! correction <type> <level1> [<level2>] ! ...
- mpix [-v] ... ! kernel <type> <size> ! ...
- mpix [-v] ... ! resize <type> <width>x<height> ! ...
- mpix [-v] ... ! qoi_encode ! ...
- mpix [-v] ... ! jpeg_encode <quality> ! ...
+Usage:
+ mpix [<flags>] <op> [<param>...] ! <op> [<param>...] ! ...
+Flags:
+ -v, --verbose             Print debug informations while running.
+ -d, --palette-depth <n>   Set the palette bit depth.
+ -c, --palette-cycles <n>  Set the number of optimization cycles
+Operations:
+ read <file> [<width> <format>]
+ write <file>
+ convert <p0>
+ correct_black_level
+ correct_color_matrix
+ correct_fused
+ correct_gamma
+ correct_white_balance
+ crop <p0> <p1> <p2> <p3>
+ debayer_1x1
+ debayer_2x2
+ debayer_3x3
+ jpeg_encode
+ kernel_convolve_3x3 <p0>
+ kernel_convolve_5x5 <p0>
+ kernel_denoise_3x3
+ kernel_denoise_5x5
+ palette_decode
+ palette_encode <p0>
+ qoi_encode
+ subsample <p0> <p1>
 ```
 
 ## Example: converting and resizing

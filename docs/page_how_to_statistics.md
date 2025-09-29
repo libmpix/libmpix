@@ -10,8 +10,9 @@ First load a buffer into an image struct, specifying the pixel format:
 
 ```c
 struct mpix_image img;
+struct mpix_format fmt = { .width = 640, .height = 480, .fourcc = MPIX_FMT_RGB24 };
 
-mpix_image_from_buf(&img, buf, sizeof(buf), 640, 480, MPIX_FMT_RGB24);
+mpix_image_from_buf(&img, buf, sizeof(buf), &fmt);
 ```
 
 Then several types of statistics can be gathered from the image in one function call.
@@ -20,7 +21,7 @@ This will sample the specified number of values from the image, and accumulate t
 the statistics struct. For instance here for `1000` values.
 
 ```c
-struct mpix_stats stats = {.nvals = 1000};
+struct mpix_stats stats = { .nvals = 1000 };
 
 mpix_stats_from_buf(&img, &stats);
 ```
