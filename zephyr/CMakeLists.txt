@@ -19,19 +19,7 @@ if(Zephyr_VERSION VERSION_EQUAL "3.6")
   message(STATUS "Using Zephyr 3.6.x port for libmpix")
   list(APPEND LIBMPIX_SRC ${LIBMPIX_DIR}/ports/zephyr_3_6/port.c)
 
-elseif(Zephyr_VERSION VERSION_EQUAL "3.7")
-  message(STATUS "Using Zephyr 3.7.x port for libmpix")
-  list(APPEND LIBMPIX_SRC ${LIBMPIX_DIR}/ports/zephyr_3_7/port.c)
-
-elseif(Zephyr_VERSION VERSION_EQUAL "4.0")
-  message(STATUS "Using Zephyr 4.0.x port for libmpix")
-  list(APPEND LIBMPIX_SRC ${LIBMPIX_DIR}/ports/zephyr_4_0/port.c)
-
-elseif(Zephyr_VERSION VERSION_EQUAL "4.1")
-  message(STATUS "Using Zephyr 4.1.x port for libmpix")
-  list(APPEND LIBMPIX_SRC ${LIBMPIX_DIR}/ports/zephyr_4_1/port.c)
-
-elseif(Zephyr_VERSION VERSION_EQUAL "4.2")
+elseif(Zephyr_VERSION VERSION_GREATER "3.6")
   message(STATUS "Using Zephyr main port for libmpix")
   list(APPEND LIBMPIX_SRC ${LIBMPIX_DIR}/ports/zephyr_main/port.c)
 
