@@ -234,6 +234,79 @@ static inline uint32_t mpix_palette_fourcc(uint8_t bit_depth)
 
 /** @} */
 
+
+/**
+ * @name IR Bayer formats
+ * Formats with bayer color filter array featuring Red, Gren, Blue, Infrared
+ * @{
+ */
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * | Rrrrrrrr | Gggggggg | Bbbbbbbb | Gggggggg |
+ * | Gggggggg | Iiiiiiii | Gggggggg | Iiiiiiii |
+ * | Bbbbbbbb | Gggggggg | Rrrrrrrr | Gggggggg |
+ * | Gggggggg | Iiiiiiii | Gggggggg | Iiiiiiii |
+ * @endcode
+ */
+#define MPIX_FMT_SRGGI8 MPIX_FOURCC('R', 'G', 'I', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * | Gggggggg | Rrrrrrrr | Gggggggg | Bbbbbbbb |
+ * | Iiiiiiii | Gggggggg | Iiiiiiii | Gggggggg |
+ * | Gggggggg | Bbbbbbbb | Gggggggg | Rrrrrrrr |
+ * | Iiiiiiii | Gggggggg | Iiiiiiii | Gggggggg |
+ * @endcode
+ */
+#define MPIX_FMT_SGRIG8 MPIX_FOURCC('G', 'R', 'I', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SBGGI8 MPIX_FOURCC('B', 'G', 'I', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SGBIG8 MPIX_FOURCC('G', 'B', 'I', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SGIRG8 MPIX_FOURCC('G', 'I', 'R', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SIGGR8 MPIX_FOURCC('I', 'G', 'R', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SGIBG8 MPIX_FOURCC('G', 'I', 'B', '8')
+
+/**
+ * @code{.unparsed}
+ *   0          1          2          3
+ * @endcode
+ */
+#define MPIX_FMT_SIGGB8 MPIX_FOURCC('I', 'G', 'B', '8')
+
+/** @} */
+
 /**
  * @name Indexed color formats
  * Formats where each pixel is a reference to a color palette.

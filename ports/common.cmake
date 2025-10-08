@@ -17,6 +17,7 @@ set(LIBMPIX_SRC
   ${LIBMPIX_DIR}/src/op_debayer_1x1.c
   ${LIBMPIX_DIR}/src/op_debayer_2x2.c
   ${LIBMPIX_DIR}/src/op_debayer_3x3.c
+  ${LIBMPIX_DIR}/src/op_debayer_ir_5x3.c
   ${LIBMPIX_DIR}/src/op_jpeg_encode.c
   ${LIBMPIX_DIR}/src/op_kernel_convolve_3x3.c
   ${LIBMPIX_DIR}/src/op_kernel_convolve_5x5.c
