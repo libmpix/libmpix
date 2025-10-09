@@ -119,7 +119,7 @@ static inline uint32_t mpix_palette_fourcc(uint8_t bit_depth)
  * 24 bit RGB format with 8 bit per component
  *
  * @code{.unparsed}
- * | Rggggggg Gggggggg Bbbbbbbb | ...
+ * | Rrrrrrrr Gggggggg Bbbbbbbb | ...
  * @endcode
  */
 #define MPIX_FMT_RGB24 MPIX_FOURCC('R', 'G', 'B', '3')
@@ -187,6 +187,46 @@ static inline uint32_t mpix_palette_fourcc(uint8_t bit_depth)
  * @endcode
  */
 #define MPIX_FMT_GREY MPIX_FOURCC('G', 'R', 'E', 'Y')
+
+/**
+ * Little endian, with the 6 most significant bits set to Zero.
+ * @code{.unparsed}
+ *   0                   1                   2                   3
+ * | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | ...
+ * | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | yyyyyyyy 000000Yy | ...
+ * @endcode
+ */
+#define MPIX_FMT_Y10 MPIX_FOURCC('Y', '1', '0', ' ')
+
+/**
+ * Little endian, with the 4 most significant bits set to Zero.
+ * @code{.unparsed}
+ *   0                   1                   2                   3
+ * | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | ...
+ * | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | yyyyyyyy 0000Yyyy | ...
+ * @endcode
+ */
+#define MPIX_FMT_Y12 MPIX_FOURCC('Y', '1', '2', ' ')
+
+/**
+ * Little endian, with the 2 most significant bits set to Zero.
+ * @code{.unparsed}
+ *   0                   1                   2                   3
+ * | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | ...
+ * | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | yyyyyyyy 00Yyyyyy | ...
+ * @endcode
+ */
+#define MPIX_FMT_Y14 MPIX_FOURCC('Y', '1', '4', ' ')
+
+/**
+ * Little endian.
+ * @code{.unparsed}
+ *   0                   1                   2                   3
+ * | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | ...
+ * | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | yyyyyyyy Yyyyyyyy | ...
+ * @endcode
+ */
+#define MPIX_FMT_Y16 MPIX_FOURCC('Y', '1', '6', ' ')
 
 /** @} */
 
@@ -304,6 +344,66 @@ static inline uint32_t mpix_palette_fourcc(uint8_t bit_depth)
  * @endcode
  */
 #define MPIX_FMT_SIGGB8 MPIX_FOURCC('I', 'G', 'B', '8')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * | rrrrrrrr | 000000Rr | gggggggg | 000000Gg | bbbbbbbb | 000000Bb | gggggggg | 000000Gg |
+ * | gggggggg | 000000Gg | iiiiiiii | 000000Ii | gggggggg | 000000Gg | iiiiiiii | 000000Ii |
+ * | bbbbbbbb | 000000Bb | gggggggg | 000000Gg | rrrrrrrr | 000000Rr | gggggggg | 000000Gg |
+ * | gggggggg | 000000Gg | iiiiiiii | 000000Ii | gggggggg | 000000Gg | iiiiiiii | 000000Ii |
+ * @endcode
+ */
+#define MPIX_FMT_SRGGI10 MPIX_FOURCC('R', 'G', 'I', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SGRIG10 MPIX_FOURCC('G', 'R', 'I', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SBGGI10 MPIX_FOURCC('B', 'G', 'I', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SGBIG10 MPIX_FOURCC('G', 'B', 'I', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SGIRG10 MPIX_FOURCC('G', 'I', 'R', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SIGGR10 MPIX_FOURCC('I', 'G', 'R', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SGIBG10 MPIX_FOURCC('G', 'I', 'B', '0')
+
+/**
+ * @code{.unparsed}
+ *   0                     1                     2                     3
+ * @endcode
+ */
+#define MPIX_FMT_SIGGB10 MPIX_FOURCC('I', 'G', 'B', '0')
 
 /** @} */
 
