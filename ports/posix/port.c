@@ -15,13 +15,15 @@ uint32_t mpix_port_get_uptime_us(void)
 	return ts.tv_sec * 1000 * 1000 + ts.tv_nsec / 1000;
 }
 
-void *mpix_port_alloc(size_t size)
+void *mpix_port_alloc(enum mpix_mem_source alloc_source, size_t size)
 {
+	(void)alloc_source;
 	return malloc(size);
 }
 
-void mpix_port_free(void *mem)
+void mpix_port_free(enum mpix_mem_source alloc_source, void *mem)
 {
+	(void)alloc_source;
 	free(mem);
 }
 
