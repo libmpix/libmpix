@@ -67,6 +67,18 @@ enum mpix_control_id {
 };
 
 /**
+ * @brief Flag to specify which memory pool to use
+ */
+enum mpix_mem_source {
+	/** External user-provided memory (not freed by libmpix) */
+	MPIX_MEM_SOURCE_USER,
+	/** Default/internal heap */
+	MPIX_MEM_SOURCE_DEFAULT,
+	/** Custom memory types for user code definitions */
+	MPIX_MEM_SOURCE_CUSTOM0,
+};
+
+/**
  * @brief Image format description.
  */
 struct mpix_format {
@@ -94,10 +106,10 @@ struct mpix_ring {
 	size_t tail;
 	/** Position of the peeking tail where data is read ahead of the tail */
 	size_t peek;
+	/** Memory source of allocated buffer */
+	enum mpix_mem_source mem_source;
 	/** Flag to tell apart between full and empty when head == tail */
 	uint8_t full : 1;
-	/** Flag to tell that the buffer is allocated by mpix_ring_free() */
-	uint8_t allocated : 1;
 };
 
 /**
@@ -123,6 +135,8 @@ struct mpix_base_op {
 	uint32_t start_time_us;
 	/** Total time spent working in this op through the operation in CPU cycles */
 	uint32_t total_time_us;
+	/** Allocation pool flag indicating to the ports the allocation to be used */
+	enum mpix_mem_source mem_source;
 };
 
 /**
@@ -146,6 +160,8 @@ struct mpix_image {
 	struct mpix_format fmt;
 	/** Array of controls provided by the operations, or NULL if none is defined */
 	int32_t *ctrls[MPIX_NB_CID];
+	/** Allocation source of memory */
+	enum mpix_mem_source mem_source;
 };
 
 /** Entry of a table mapping strings to integer values, useful for macros and enums */

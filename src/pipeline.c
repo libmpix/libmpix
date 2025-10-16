@@ -89,7 +89,7 @@ int mpix_pipeline_alloc(struct mpix_base_op *first)
 	int err;
 
 	for (struct mpix_base_op *op = first; op != NULL; op = op->next) {
-		err = mpix_ring_alloc(&op->ring);
+		err = mpix_ring_alloc(&op->ring, first->mem_source);
 		if (err) return err;
 	}
 
@@ -99,10 +99,11 @@ int mpix_pipeline_alloc(struct mpix_base_op *first)
 void mpix_pipeline_free(struct mpix_base_op *first)
 {
 	for (struct mpix_base_op *next, *op = first; op != NULL; op = next) {
+		enum mpix_mem_source mem_source = op->mem_source;
 		next = op->next;
 		mpix_ring_free(&op->ring);
 		memset(op, 0x00, sizeof(*op));
-		mpix_port_free(op);
+		mpix_port_free(op, mem_source);
 	}
 }
 

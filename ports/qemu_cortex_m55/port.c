@@ -17,8 +17,9 @@
 static uint8_t heap_memory[MPIX_HEAP_SIZE] __attribute__((aligned(8)));
 static size_t heap_offset = 0;
 
-void *mpix_port_alloc(size_t size)
+void *mpix_port_alloc(size_t size, enum mpix_mem_source mem_source)
 {
+    (void)mem_source;
     // Align size to 8-byte boundary
     size = (size + 7) & ~7;
 
@@ -31,8 +32,9 @@ void *mpix_port_alloc(size_t size)
     return ptr;
 }
 
-void mpix_port_free(void *mem)
+void mpix_port_free(void *mem, enum mpix_mem_source mem_source)
 {
+    (void)mem_source;
     // Simple allocator doesn't support free
     // In real embedded system, might use a more sophisticated allocator
     (void)mem;

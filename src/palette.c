@@ -25,18 +25,18 @@ int mpix_image_optimize_palette(struct mpix_image *img, struct mpix_palette *pal
 	const size_t nums_sz = colors_nb * sizeof(*nums);
 	uint8_t rgb[3];
 	int err;
-
-	sums = mpix_port_alloc(sums_sz);
+	
+	sums = mpix_port_alloc(sums_sz, img->mem_source);
 	if (sums == NULL) {
 		MPIX_ERR("Failed to allocate the sum array");
 		return -ENOMEM;
 	}
 	memset(sums, 0x00, sums_sz);
 
-	nums = mpix_port_alloc(nums_sz);
+	nums = mpix_port_alloc(nums_sz, img->mem_source);
 	if (nums == NULL) {
 		MPIX_ERR("Failed to allocate the num array");
-		mpix_port_free(sums);
+		mpix_port_free(sums, img->mem_source);
 		return -ENOMEM;
 	}
 	memset(nums, 0x00, nums_sz);
@@ -76,8 +76,8 @@ int mpix_image_optimize_palette(struct mpix_image *img, struct mpix_palette *pal
 		}
 	}
 
-	mpix_port_free(sums);
-	mpix_port_free(nums);
+	mpix_port_free(sums, img->mem_source);
+	mpix_port_free(nums, img->mem_source);
 
 	return 0;
 }

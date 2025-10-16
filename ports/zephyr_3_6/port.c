@@ -12,13 +12,15 @@
 
 K_HEAP_DEFINE(mpix_heap, CONFIG_MPIX_HEAP_SIZE);
 
-void *mpix_port_alloc(size_t size)
+void *mpix_port_alloc(size_t size, enum mpix_mem_source mem_source)
 {
+	(void)mem_source;
 	return k_heap_alloc(&mpix_heap, size, K_NO_WAIT);
 }
 
-void mpix_port_free(void *mem)
+void mpix_port_free(void *mem, enum mpix_mem_source mem_source)
 {
+	(void)mem_source;
 	return k_heap_free(&mpix_heap, mem);
 }
 

@@ -16,22 +16,23 @@
 
 static inline void mpix_ring_free(struct mpix_ring *ring)
 {
-	if (ring->allocated) {
-		ring->allocated = false;
-		mpix_port_free(ring->buffer);
+	// ensure we only free for memory managed by mpix_port_*
+	if (ring->mem_source != MPIX_MEM_SOURCE_USER){
+		mpix_port_free(ring->buffer, ring->mem_source);
+		ring->buffer = NULL;
 	}
 }
 
-static inline int mpix_ring_alloc(struct mpix_ring *ring)
+static inline int mpix_ring_alloc(struct mpix_ring *ring, enum mpix_mem_source mem_source)
 {
 	/* If no buffer is provided, allocate one */
 	if (ring->buffer == NULL) {
-		ring->buffer = mpix_port_alloc(ring->size);
+		ring->buffer = mpix_port_alloc(ring->size, mem_source);
 		if (ring->buffer == NULL) {
 			return -ENOMEM;
 		}
 
-		ring->allocated = true;
+		ring->mem_source = mem_source;
 	}
 
 	return 0;
