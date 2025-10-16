@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <mpix/types.h>
+
 /**
  * @brief Get the uptime in microsecond, used to compute performance statistics
  *
@@ -25,19 +27,21 @@ uint32_t mpix_port_get_uptime_us(void);
  *
  * This will be used to allocate the small intermediate buffers present between the operations.
  *
+ * @param alloc_source Source of memory
  * @param size Number of bytes available in the buffer
  * @return The pointer to the new buffer or NULL if allocation failed.
  */
-void *mpix_port_alloc(size_t size);
+void *mpix_port_alloc(enum mpix_mem_source alloc_source, size_t size);
 
 /**
  * @brief Free a buffer allocated with @ref mpix_port_alloc().
  *
  * This will be used to free the buffers that were allocated after all processing.
  *
+ * @param alloc_source Source of memory
  * @param mem Pointer to the buffer to free.
  */
-void mpix_port_free(void *mem);
+void mpix_port_free(enum mpix_mem_source alloc_source, void *mem);
 
 /**
  * @brief Print debug information to the console

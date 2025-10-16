@@ -14,19 +14,19 @@
 #include <mpix/types.h>
 #include <mpix/utils.h>
 
-static inline void mpix_ring_free(struct mpix_ring *ring)
+static inline void mpix_ring_free(struct mpix_ring *ring, enum mpix_mem_source alloc_source)
 {
 	if (ring->allocated) {
 		ring->allocated = false;
-		mpix_port_free(ring->buffer);
+		mpix_port_free(alloc_source, ring->buffer);
 	}
 }
 
-static inline int mpix_ring_alloc(struct mpix_ring *ring)
+static inline int mpix_ring_alloc(struct mpix_ring *ring, enum mpix_mem_source alloc_source)
 {
 	/* If no buffer is provided, allocate one */
 	if (ring->buffer == NULL) {
-		ring->buffer = mpix_port_alloc(ring->size);
+		ring->buffer = mpix_port_alloc(alloc_source, ring->size);
 		if (ring->buffer == NULL) {
 			return -ENOMEM;
 		}
