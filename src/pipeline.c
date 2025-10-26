@@ -38,6 +38,47 @@ MPIX_FOR_EACH_OP(CASE_MPIX_OP_ADD)
 	}
 }
 
+int mpix_pipeline_add_array(struct mpix_image *img, int32_t array[], size_t size)
+{
+	enum { TYPE, PARAMS };
+	int err;
+
+	for (size_t n = 0; PARAMS <= size; n++) {
+		int params_nb;
+
+		params_nb = mpix_params_nb(array[TYPE]);
+		if (params_nb < 0) {
+			MPIX_ERR("Invalid number operation type %u", array[TYPE]);
+			return -EINVAL;
+		}
+
+		if ((size_t)params_nb > size) {
+			MPIX_ERR("No room left for %u parameters", params_nb);
+			return -ENOSPC;
+		}
+
+		err = mpix_pipeline_add(img, array[TYPE], &array[PARAMS], params_nb);
+		if (err) {
+			MPIX_ERR("Failed to add operation #%zu (%s): %s",
+				n, mpix_str_op[array[TYPE]], strerror(-err));
+			return err;
+		}
+
+		MPIX_INF("Added operation %s with %u parameters",
+			mpix_str_op[array[TYPE]], params_nb);
+
+		array += PARAMS + params_nb;
+		size -= PARAMS + params_nb;
+	}
+
+	if (size != 0) {
+		MPIX_ERR("Invalid size for operation buffer, %u integers left", size);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int mpix_pipeline_run_once(struct mpix_base_op *op)
 {
 	int err;
