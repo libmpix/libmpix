@@ -27,7 +27,15 @@ int mpix_add_correct_fused(struct mpix_image *img, const int32_t *params)
 	/* Register controls */
 	img->ctrls[MPIX_CID_BLACK_LEVEL] = &op->black_level;
 	img->ctrls[MPIX_CID_GAMMA_LEVEL] = &op->gamma_level_q10;
-	img->ctrls[MPIX_CID_COLOR_MATRIX] = op->color_matrix_q10;
+	img->ctrls[MPIX_CID_COLOR_MATRIX_0] = &op->color_matrix_q10[0];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_1] = &op->color_matrix_q10[1];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_2] = &op->color_matrix_q10[2];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_3] = &op->color_matrix_q10[3];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_4] = &op->color_matrix_q10[4];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_5] = &op->color_matrix_q10[5];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_6] = &op->color_matrix_q10[6];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_7] = &op->color_matrix_q10[7];
+	img->ctrls[MPIX_CID_COLOR_MATRIX_8] = &op->color_matrix_q10[8];
 
 	return 0;
 }

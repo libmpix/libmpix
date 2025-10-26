@@ -447,23 +447,6 @@ static inline int mpix_image_ctrl_value(struct mpix_image *img, enum mpix_contro
 }
 
 /**
- * @brief Get the size of a control ID
- *
- * Pipeline control parameters can sometimes contain multiple values in an array.
- * See @ref mpix_image_ctrl_array for how to set multiple values at once.
- *
- * @param cid The control ID to probe.
- * @return The size in bytes.
- */
-static inline size_t mpix_image_ctrl_size(enum mpix_control_id cid)
-{
-	switch (cid) {
-	case MPIX_CID_COLOR_MATRIX: return 9;
-	default: return 1;
-	}
-}
-
-/**
  * @brief Set a control to a pipeline
  *
  * This is to be set after pipeline elements are added, so that their respective controls are
@@ -475,11 +458,13 @@ static inline size_t mpix_image_ctrl_size(enum mpix_control_id cid)
  * @return 0 on sucess, or negative error code
  */
 static inline int mpix_image_ctrl_array(struct mpix_image *img, enum mpix_control_id cid,
-					    int32_t *array)
+					    int32_t *array, size_t size)
 {
-	if (cid > MPIX_NB_CID) return -ERANGE;
-	if (img->ctrls[cid] == NULL) return -ENOENT;
-	memcpy(img->ctrls[cid], array, mpix_image_ctrl_size(cid) * sizeof(int32_t));
+	if (cid + size > MPIX_NB_CID) return -ERANGE;
+	for (size_t i = 0; i < size; i++) {
+		if (img->ctrls[cid + i] == NULL) return -ENOENT;
+		*img->ctrls[cid + i] = array[i];
+	}
 	return 0;
 }
 

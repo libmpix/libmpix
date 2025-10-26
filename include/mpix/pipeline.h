@@ -18,14 +18,22 @@
  * is empty, as well as in @ref mpix_op_done to run the next operation in the chain.
  *
  * @param op The first operation of the pipeline.
+ * @return 0 on success or negative error code.
  */
 int mpix_pipeline_run_loop(struct mpix_base_op *op);
+
+/**
+ * @brief Run a pipeline of operation on a single input line
+ *
+ * @param op The first operation of the pipeline.
+ * @return 0 on success or negative error code.
+ */
 int mpix_pipeline_run_once(struct mpix_base_op *op);
 
 /**
  * @brief Get the number of parameters that an operation accepts
  * @param type The operation type.
- * @retval The number of parameters or negative error code on invalid operation.
+ * @return The number of parameters or negative error code on invalid operation.
  */
 int mpix_params_nb(enum mpix_op_type type);
 
@@ -36,28 +44,21 @@ int mpix_params_nb(enum mpix_op_type type);
  * @param type The operation type to allocate and add.
  * @param params The array of parameters for that operation.
  * @param params_nb The number of parameters in that array.
- *
  * @return 0 on success or negative error code.
  */
 int mpix_pipeline_add(struct mpix_image *img, enum mpix_op_type type, const int32_t *params,
 		      size_t params_nb);
 
 /**
- * @brief Add a operation processing step to an image.
- * @internal
+ * @brief Append an array of integer into a pipeline operation
  *
- * @note This is a low-level function only needed to implement new operations.
- *
- * The operation step will not be processed immediately, but rather added to a linked list of
- * operations that will be performed at runtime.
- *
- * @param img Image to which add a processing step.
- * @param op_sz Size of the operation struct to allocate.
- * @param buf_sz Size of the input buffer to allocate for this operation.
+ * @param img The image to which add operations.
+ * @param type The operation type to allocate and add.
+ * @param params The array of parameters for that operation.
+ * @param params_nb The number of parameters in that array.
  * @return 0 on success or negative error code.
  */
-void *mpix_pipeline_append(struct mpix_image *img, enum mpix_op_type op_type, size_t op_sz,
-			   size_t buf_sz);
+int mpix_pipeline_add_array(struct mpix_image *img, int32_t array[], size_t size);
 
 /**
  * @brief Allocate intermediate memory for all operations of a pipeline
@@ -95,6 +96,8 @@ void mpix_pipeline_free(struct mpix_base_op *first_op);
  */
 int mpix_pipeline_set_palette(struct mpix_base_op *first_op, struct mpix_palette *palette);
 
+int mpix_pipeline_get_palette_fourcc(struct mpix_base_op *first_op, struct mpix_palette *palette);
+
 /**
  * @brief Process a buffer into a pipeline.
  *
@@ -105,9 +108,5 @@ int mpix_pipeline_set_palette(struct mpix_base_op *first_op, struct mpix_palette
  * @return 0 on success or negative error code
  */
 int mpix_pipeline_process(struct mpix_base_op *op, const uint8_t *buffer, size_t size);
-
-int mpix_pipeline_set_palette(struct mpix_base_op *first_op, struct mpix_palette *palette);
-
-int mpix_pipeline_get_palette_fourcc(struct mpix_base_op *first_op, struct mpix_palette *palette);
 
 #endif /** @} */

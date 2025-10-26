@@ -60,8 +60,24 @@ enum mpix_control_id {
 	MPIX_CID_BLUE_BALANCE,
 	/** JPEG quality level (enum) to use while encoding/decoding images */
 	MPIX_CID_JPEG_QUALITY,
-	/** Color correction matrix coefficients (in Q.10, array of 9 values) */
-	MPIX_CID_COLOR_MATRIX,
+	/** Color correction matrix coefficient (in Q.10): red effect on red */
+	MPIX_CID_COLOR_MATRIX_0,
+	/** Color correction matrix coefficient (in Q.10): green effect on red */
+	MPIX_CID_COLOR_MATRIX_1,
+	/** Color correction matrix coefficient (in Q.10): blue effect on red */
+	MPIX_CID_COLOR_MATRIX_2,
+	/** Color correction matrix coefficient (in Q.10): red effect on green */
+	MPIX_CID_COLOR_MATRIX_3,
+	/** Color correction matrix coefficient (in Q.10): green effect on green */
+	MPIX_CID_COLOR_MATRIX_4,
+	/** Color correction matrix coefficient (in Q.10): blue effect on green */
+	MPIX_CID_COLOR_MATRIX_5,
+	/** Color correction matrix coefficient (in Q.10): red effect on blue */
+	MPIX_CID_COLOR_MATRIX_6,
+	/** Color correction matrix coefficient (in Q.10): green effect on blue */
+	MPIX_CID_COLOR_MATRIX_7,
+	/** Color correction matrix coefficient (in Q.10): blue effect on blue */
+	MPIX_CID_COLOR_MATRIX_8,
 	/** Total number of control IDs */
 	MPIX_NB_CID,
 };

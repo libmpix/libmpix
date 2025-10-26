@@ -12,14 +12,13 @@
 #include <mpix/posix.h>
 #include <mpix/print.h>
 
-#define CHECK(x) \
-	({ int e = (x); if (e) { fprintf(stderr, "%s: %s\n", #x, strerror(-e)); return e; } })
-
 int main(int argc, char **argv)
 {
 	const struct mpix_format fmt = { .width = 640, .height = 480, .fourcc = MPIX_FMT_RGB24 };
+	struct mpix_palette palette = {};
 	size_t size = mpix_format_pitch(&fmt) * fmt.height;
 	uint8_t *buf;
+	int err;
 
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s input-file.raw >output-file.raw\n", argv[0]);
@@ -54,9 +53,6 @@ int main(int argc, char **argv)
 	/* Initialize the image with this buffer */
 	mpix_image_from_buf(&img, buf, size, &fmt);
 
-	/* Assign the image to the mpix lua binding */
-	lua_mpix_set_image(&img);
-
 	/* Configure the image processing with lua */
 	{
 		/* Configure the image processing the Lua API */
@@ -76,15 +72,30 @@ int main(int argc, char **argv)
 		/* All the state is now contained within the pipeline, no more scripting needed */
 		lua_close(L);
 
+		/* Get the pipeline constructed by lua */
+		int32_t *pipeline = lua_mpix_get_pipeline();
+		err = mpix_pipeline_add_array(&img, &pipeline[1], pipeline[0]);
+		if (err) {
+			MPIX_ERR("Failed to apply the pipeline");
+			return EXIT_FAILURE;
+		}
+
+		/* Apply every control value */
+		for (int i = 0; i < MPIX_NB_CID; i++) {
+			mpix_image_ctrl_value(&img, i, lua_mpix_get_ctrl(i));
+		}
+
 		/* Run hooks to complete the configuration */
-		lua_mpix_hooks(L);
+		lua_mpix_hooks(L, &img, &palette);
 	}
 
-	/* Show the pipeline built by the script */
-	mpix_print_pipeline(img.first_op);
-
 	/* Convert the image to the output buffer */
-	CHECK(mpix_image_to_file(&img, STDOUT_FILENO, 1024 * 1024));
+	if (mpix_image_to_file(&img, STDOUT_FILENO, 1024 * 1024) != 0) {
+		perror("running the pipeline");
+	}
+
+	/* Show the pipeline with the timestamps */
+	mpix_print_pipeline(img.first_op);
 
 	mpix_image_free(&img);
 
