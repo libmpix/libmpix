@@ -49,9 +49,14 @@ int main(int argc, char **argv)
 	}
 
 	struct mpix_image img = {};
+	struct mpix_stats stats = {};
 
 	/* Initialize the image with this buffer */
 	mpix_image_from_buf(&img, buf, size, &fmt);
+
+	/* Compute statistics and submit it to the Lua library */
+	mpix_image_stats(&img, &stats);
+	lua_mpix_set_stats(&stats);
 
 	/* Configure the image processing with lua */
 	{
@@ -86,7 +91,7 @@ int main(int argc, char **argv)
 		}
 
 		/* Run hooks to complete the configuration */
-		lua_mpix_hooks(L, &img, &palette);
+		lua_mpix_hooks(&img, &palette);
 	}
 
 	/* Convert the image to the output buffer */

@@ -10,11 +10,16 @@
 #include <mpix/operation.h>
 #include <mpix/print.h>
 
-/* Ping-pong buffers */
+/* Ping-pong buffers for the pipeline */
 #define LUA_MPIX_PIPELINE_SIZE 32
 static int32_t lua_mpix_pipeline_a[LUA_MPIX_PIPELINE_SIZE];
 static int32_t lua_mpix_pipeline_b[LUA_MPIX_PIPELINE_SIZE];
 static volatile int32_t *lua_mpix_pipeline = lua_mpix_pipeline_a;
+
+/* Ping-pong buffers for the statistics */
+static struct mpix_stats lua_mpix_stats_a;
+static struct mpix_stats lua_mpix_stats_b;
+static volatile struct mpix_stats *lua_mpix_stats = &lua_mpix_stats_a;
 
 /* Controls used for tuning the image */
 static volatile int32_t lua_mpix_ctrls[MPIX_NB_CID];
@@ -98,7 +103,7 @@ static int lua_mpix_set_pipeline(lua_State *L)
 	return 0;
 }
 
-static int lua_mpix_ctrl(lua_State *L)
+static int lua_mpix_set_ctrl(lua_State *L)
 {
 	enum { CTRL_ID = 1, VALUE };
 
@@ -117,9 +122,67 @@ static int lua_mpix_ctrl(lua_State *L)
 	return 0;
 }
 
+static int lua_mpix_get_stats(lua_State *L)
+{
+	enum { R, G, B };
+	struct mpix_stats *stats = (void *)lua_mpix_stats;
+
+	lua_newtable(L);
+
+	lua_newtable(L);
+	for (size_t i = 0; i < ARRAY_SIZE(stats->y_histogram); i++) {
+		lua_pushinteger(L, stats->y_histogram[i]);
+		lua_rawseti(L, -2, i + 1);
+	}
+	lua_setfield(L, -2, "y_histogram");
+
+	lua_newtable(L);
+	for (size_t i = 0; i < ARRAY_SIZE(stats->y_histogram_vals); i++) {
+		lua_pushinteger(L, stats->y_histogram_vals[i]);
+		lua_rawseti(L, -2, i + 1);
+	}
+	lua_setfield(L, -2, "y_histogram_vals");
+
+	lua_pushinteger(L, stats->y_histogram_total);
+	lua_setfield(L, -2, "y_histogram_total");
+
+	lua_pushinteger(L, stats->rgb_average[R]);
+	lua_setfield(L, -2, "rgb_average_r");
+
+	lua_pushinteger(L, stats->rgb_average[G]);
+	lua_setfield(L, -2, "rgb_average_g");
+
+	lua_pushinteger(L, stats->rgb_average[B]);
+	lua_setfield(L, -2, "rgb_average_b");
+
+	lua_pushinteger(L, stats->rgb_min[R]);
+	lua_setfield(L, -2, "rgb_min_r");
+
+	lua_pushinteger(L, stats->rgb_min[G]);
+	lua_setfield(L, -2, "rgb_min_g");
+
+	lua_pushinteger(L, stats->rgb_min[B]);
+	lua_setfield(L, -2, "rgb_min_b");
+
+	lua_pushinteger(L, stats->rgb_max[R]);
+	lua_setfield(L, -2, "rgb_max_r");
+
+	lua_pushinteger(L, stats->rgb_max[G]);
+	lua_setfield(L, -2, "rgb_max_g");
+
+	lua_pushinteger(L, stats->rgb_max[B]);
+	lua_setfield(L, -2, "rgb_max_b");
+
+	lua_pushinteger(L, stats->nvals);
+	lua_setfield(L, -2, "nvals");
+
+	return 1;
+}
+
 static const struct luaL_Reg lua_mpix_reg[] = {
-	{ "ctrl", lua_mpix_ctrl },
+	{ "set_ctrl", lua_mpix_set_ctrl },
 	{ "set_pipeline", lua_mpix_set_pipeline },
+	{ "get_stats", lua_mpix_get_stats },
 	{ NULL, NULL },
 };
 
@@ -181,15 +244,27 @@ int32_t lua_mpix_get_ctrl(size_t cid)
 	return (cid > MPIX_NB_CID) ? 0 : lua_mpix_ctrls[cid];
 }
 
-static void lua_mpix_palette_hooks(lua_State *L, struct mpix_image *img,
-				   struct mpix_palette *palette)
+void lua_mpix_set_stats(struct mpix_stats *stats)
+{
+	/* Copy to the inactive buffer and mark it as active */
+	if (lua_mpix_stats == &lua_mpix_stats_a) {
+		memcpy(&lua_mpix_stats_b, stats, sizeof(lua_mpix_stats_b));
+		lua_mpix_stats = &lua_mpix_stats_b;
+	}
+	if (lua_mpix_stats == &lua_mpix_stats_b) {
+		memcpy(&lua_mpix_stats_a, stats, sizeof(lua_mpix_stats_a));
+		lua_mpix_stats = &lua_mpix_stats_a;
+	}
+}
+
+static int lua_mpix_palette_hooks(struct mpix_image *img, struct mpix_palette *palette)
 {
 	struct mpix_image palette_img = {};
 	int err;
 
 	/* Try to find a palette through the image to get the fourcc */
 	err = mpix_pipeline_get_palette_fourcc(img->first_op, palette);
-	if (err) return; /* nothing to do */
+	if (err) return 0; /* nothing to do */
 
 	/* Turn the color palette into an image to apply the correction on it */
 	mpix_image_from_palette(&palette_img, palette);
@@ -202,7 +277,7 @@ static void lua_mpix_palette_hooks(lua_State *L, struct mpix_image *img,
 		case MPIX_OP_CORRECT_GAMMA:
 		case MPIX_OP_CORRECT_WHITE_BALANCE:
 			err = mpix_pipeline_add(&palette_img, op->type, NULL, 0);
-			if (err) luaL_error(L, "%s at line %u", __func__, __LINE__);
+			if (err) return err;
 			break;
 		default:
 			break;
@@ -219,15 +294,21 @@ static void lua_mpix_palette_hooks(lua_State *L, struct mpix_image *img,
 	/* Apply the image correction to the color palette to get accurate colors */
 	err = mpix_image_to_palette(&palette_img, palette);
 	mpix_image_free(&palette_img);
-	if (err) luaL_error(L, "%s at line %u", __func__, __LINE__);
+	if (err) return err;
 
 	/* Apply it to all palette operations */
 	err = mpix_pipeline_set_palette(img->first_op, palette);
-	if (err) luaL_error(L, "%s at line %u", __func__, __LINE__);
+	if (err) return err;
+
+	return 0;
 }
 
-int lua_mpix_hooks(lua_State *L, struct mpix_image *img, struct mpix_palette *palette)
+int lua_mpix_hooks(struct mpix_image *img, struct mpix_palette *palette)
 {
-	lua_mpix_palette_hooks(L, img, palette);
+	int err;
+
+	err = lua_mpix_palette_hooks(img, palette);
+	if (err) return err;
+
 	return 0;
 }

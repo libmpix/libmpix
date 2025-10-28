@@ -13,12 +13,15 @@ int luaopen_mpix(lua_State *L);
 void lua_mpix_set_image(struct mpix_image *img);
 
 /** Run hooks, to call just before processing the pipeline built by Lua */
-int lua_mpix_hooks(lua_State *L, struct mpix_image *img, struct mpix_palette *palette);
+int lua_mpix_hooks(struct mpix_image *img, struct mpix_palette *palette);
 
 /** Get the active pipeline definition */
 int32_t *lua_mpix_get_pipeline(void);
 
 /** Get the queried control number */
 int32_t lua_mpix_get_ctrl(size_t cid);
+
+/** Set the statistics struct used by the pipeline */
+void lua_mpix_set_stats(struct mpix_stats *stats);
 
 #endif
