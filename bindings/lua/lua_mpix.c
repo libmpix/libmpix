@@ -11,7 +11,6 @@
 #include <mpix/print.h>
 
 /* Ping-pong buffers for the pipeline */
-#define LUA_MPIX_PIPELINE_SIZE 32
 static int32_t lua_mpix_pipeline_a[LUA_MPIX_PIPELINE_SIZE];
 static int32_t lua_mpix_pipeline_b[LUA_MPIX_PIPELINE_SIZE];
 static volatile int32_t *lua_mpix_pipeline = lua_mpix_pipeline_a;
@@ -239,9 +238,9 @@ int32_t *lua_mpix_get_pipeline(void)
 	return (int32_t *)lua_mpix_pipeline;
 }
 
-int32_t lua_mpix_get_ctrl(size_t cid)
+int32_t *lua_mpix_get_ctrls(void)
 {
-	return (cid > MPIX_NB_CID) ? 0 : lua_mpix_ctrls[cid];
+	return lua_mpix_ctrls;
 }
 
 void lua_mpix_set_stats(struct mpix_stats *stats)
