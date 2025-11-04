@@ -15,7 +15,6 @@
 #include <mpix/config.h>
 #include <mpix/genlist.h>
 #include <mpix/image.h>
-#include <mpix/op_debayer.h>
 
 /*
  * ARM Helium MVE optimized debayer implementations

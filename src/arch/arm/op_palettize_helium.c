@@ -6,8 +6,9 @@
 
 #include "arm_mve.h"
 
-#include <mpix/op_palettize.h>
 #include <mpix/utils.h>
+#include <mpix/types.h>
+#include <mpix/formats.h>
 
 /* -------------------- Common helpers (mirrors style in op_correction_helium.c) -------------------- */
 static inline uint8x16_t mpix_rgb_offsets3(void)
@@ -227,9 +228,9 @@ static inline __attribute__((always_inline, hot)) void mpix_rgb24_argmin_palette
         uint8x16_t vcR = vdupq_n_u8(pc[0]);
         uint8x16_t vcG = vdupq_n_u8(pc[1]);
         uint8x16_t vcB = vdupq_n_u8(pc[2]);
-    uint8x16_t dr8 = vabdq_u8(r, vcR);
-    uint8x16_t dg8 = vabdq_u8(g, vcG);
-    uint8x16_t db8 = vabdq_u8(b, vcB);
+        uint8x16_t dr8 = vabdq_u8(r, vcR);
+        uint8x16_t dg8 = vabdq_u8(g, vcG);
+        uint8x16_t db8 = vabdq_u8(b, vcB);
         uint16x8_t dr_lo = vmovlbq_u8(dr8), dr_hi = vmovltq_u8(dr8);
         uint16x8_t dg_lo = vmovlbq_u8(dg8), dg_hi = vmovltq_u8(dg8);
         uint16x8_t db_lo = vmovlbq_u8(db8), db_hi = vmovltq_u8(db8);
@@ -241,7 +242,7 @@ static inline __attribute__((always_inline, hot)) void mpix_rgb24_argmin_palette
         mve_pred16_t phi = vcmphiq_u16(best_hi, dist_hi);
         best_hi = vpselq_u16(dist_hi, best_hi, phi);
         best_idx_hi = vpselq_u16(idxv16, best_idx_hi, phi);
-    if ((vaddvq_u16(best_lo) + vaddvq_u16(best_hi)) == 0u) {
+        if ((vaddvq_u16(best_lo) + vaddvq_u16(best_hi)) == 0u) {
             break;
         }
     }
@@ -256,7 +257,7 @@ static inline __attribute__((always_inline, hot)) void mpix_rgb24_argmin_palette
 void mpix_convert_rgb24_to_palette8(const uint8_t *src, uint8_t *dst, uint16_t width,
                                     const struct mpix_palette *palette)
 {
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_size = mpix_palette_size_inline(palette);
 
     uint8x16_t offs3 = mpix_rgb_offsets3();
@@ -280,7 +281,7 @@ void mpix_convert_rgb24_to_palette8(const uint8_t *src, uint8_t *dst, uint16_t w
 void mpix_convert_palette8_to_rgb24(const uint8_t *src, uint8_t *dst, uint16_t width,
                                     const struct mpix_palette *palette)
 {
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     /* Build contiguous channel LUTs pr/pg/pb to allow byte-indexed gathers (no scale) */
     uint16_t pal_sz = mpix_palette_size_inline(palette);
     uint8_t pr[256], pg[256], pb[256];
@@ -446,7 +447,7 @@ void mpix_convert_rgb24_to_palette4(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_size = mpix_palette_size_inline(palette);
 
     uint8x16_t offs3 = mpix_rgb_offsets3();
@@ -479,7 +480,7 @@ void mpix_convert_rgb24_to_palette2(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_size = mpix_palette_size_inline(palette);
 
     uint8x16_t offs3 = mpix_rgb_offsets3();
@@ -510,7 +511,7 @@ void mpix_convert_rgb24_to_palette1(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_size = mpix_palette_size_inline(palette);
 
     uint8x16_t offs3 = mpix_rgb_offsets3();
@@ -561,7 +562,7 @@ void mpix_convert_palette4_to_rgb24(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_sz = mpix_palette_size_inline(palette);
     uint8_t pr[256], pg[256], pb[256];
     for (uint16_t i = 0; i < pal_sz; ++i) { pr[i]=pal[3u*i+0]; pg[i]=pal[3u*i+1]; pb[i]=pal[3u*i+2]; }
@@ -605,7 +606,7 @@ void mpix_convert_palette2_to_rgb24(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_sz = mpix_palette_size_inline(palette);
     uint8_t pr[256], pg[256], pb[256];
     for (uint16_t i = 0; i < pal_sz; ++i) { pr[i]=pal[3u*i+0]; pg[i]=pal[3u*i+1]; pb[i]=pal[3u*i+2]; }
@@ -649,7 +650,7 @@ void mpix_convert_palette1_to_rgb24(const uint8_t *src, uint8_t *dst, uint16_t w
 {
     /* Support any width (tail handled below) */
 
-    const uint8_t *pal = palette->colors;
+    const uint8_t *pal = palette->colors_rgb24;
     uint16_t pal_sz = mpix_palette_size_inline(palette);
     uint8_t pr[256], pg[256], pb[256];
     for (uint16_t i = 0; i < pal_sz; ++i) { pr[i]=pal[3u*i+0]; pg[i]=pal[3u*i+1]; pb[i]=pal[3u*i+2]; }
