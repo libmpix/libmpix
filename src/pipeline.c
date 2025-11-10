@@ -130,7 +130,7 @@ int mpix_pipeline_alloc(struct mpix_base_op *first)
 	int err;
 
 	for (struct mpix_base_op *op = first; op != NULL; op = op->next) {
-		err = mpix_ring_alloc(&op->ring, first->mem_source);
+		err = mpix_ring_alloc(&op->ring);
 		if (err) return err;
 	}
 
@@ -140,11 +140,10 @@ int mpix_pipeline_alloc(struct mpix_base_op *first)
 void mpix_pipeline_free(struct mpix_base_op *first)
 {
 	for (struct mpix_base_op *next, *op = first; op != NULL; op = next) {
-		enum mpix_mem_source mem_source = op->mem_source;
 		next = op->next;
 		mpix_ring_free(&op->ring);
 		memset(op, 0x00, sizeof(*op));
-		mpix_port_free(op, mem_source);
+		mpix_port_free(op, MPIX_MEM_SOURCE_DEFAULT);
 	}
 }
 
@@ -153,8 +152,7 @@ int mpix_pipeline_process(struct mpix_base_op *op, const uint8_t *buffer, size_t
 	int err;
 
 	/* If not set already, connect the buffer to the read-only input of the pipeline */
-	op->ring.buffer = (uint8_t *)buffer;
-	op->ring.size = size;
+	mpix_ring_set_buffer(&op->ring, (uint8_t *)buffer, size);
 	mpix_ring_write(&op->ring, size);
 
 	/* Allocate all the buffers not already alloated */

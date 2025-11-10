@@ -240,7 +240,7 @@ int32_t *lua_mpix_get_pipeline(void)
 
 int32_t *lua_mpix_get_ctrls(void)
 {
-	return lua_mpix_ctrls;
+	return (int32_t *)lua_mpix_ctrls;
 }
 
 void lua_mpix_set_stats(struct mpix_stats *stats)

@@ -86,8 +86,9 @@ int main(int argc, char **argv)
 		}
 
 		/* Apply every control value */
+		int32_t *ctrls = lua_mpix_get_ctrls();
 		for (int i = 0; i < MPIX_NB_CID; i++) {
-			mpix_image_ctrl_value(&img, i, lua_mpix_get_ctrl(i));
+			mpix_image_ctrl_value(&img, i, ctrls[i]);
 		}
 
 		/* Run hooks to complete the configuration */

@@ -46,7 +46,7 @@ static inline void mpix_image_from_buf(struct mpix_image *img, const uint8_t *bu
 static inline int mpix_image_to_buf(struct mpix_image *img, uint8_t *buffer, size_t size)
 {
 	if (mpix_op_append(img, MPIX_OP_END, sizeof(*img->last_op), size) == NULL) return -ENOMEM;
-	img->last_op->ring.buffer = buffer;
+	mpix_ring_set_buffer(&img->last_op->ring, buffer, size);
 	return mpix_pipeline_process(img->first_op, img->buffer, img->size);
 }
 

@@ -190,7 +190,7 @@ static inline void *mpix_op_append(struct mpix_image *img, enum mpix_op_type op_
 {
 	struct mpix_base_op *op;
 
-	op = mpix_port_alloc(op_sz, img->mem_source);
+	op = mpix_port_alloc(op_sz, MPIX_MEM_SOURCE_DEFAULT);
 	if (op == NULL) {
 		return NULL;
 	}
@@ -199,6 +199,7 @@ static inline void *mpix_op_append(struct mpix_image *img, enum mpix_op_type op_
 	op->type = op_type;
 	op->fmt = img->fmt;
 	op->ring.size = buf_sz;
+	op->ring.mem_source = img->mem_source;
 
 	if (img->last_op != NULL) {
 		img->last_op->next = op;

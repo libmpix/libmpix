@@ -86,10 +86,10 @@ enum mpix_control_id {
  * @brief Flag to specify which memory pool to use
  */
 enum mpix_mem_source {
-	/** External user-provided memory (not freed by libmpix) */
-	MPIX_MEM_SOURCE_USER,
 	/** Default/internal heap */
 	MPIX_MEM_SOURCE_DEFAULT,
+	/** External user-provided memory (not freed by libmpix) */
+	MPIX_MEM_SOURCE_USER,
 	/** Custom memory types for user code definitions */
 	MPIX_MEM_SOURCE_CUSTOM0,
 };
@@ -151,8 +151,6 @@ struct mpix_base_op {
 	uint32_t start_time_us;
 	/** Total time spent working in this op through the operation in CPU cycles */
 	uint32_t total_time_us;
-	/** Allocation pool flag indicating to the ports the allocation to be used */
-	enum mpix_mem_source mem_source;
 };
 
 /**
