@@ -41,7 +41,7 @@ static inline void mpix_gibg8_to_xrgb32_5x3(const uint8_t src0[5], const uint8_t
 }
 
 
-static inline void mpix_iggr_to_xrgb32_5x3(const uint8_t src0[5], const uint8_t src1[5],
+static inline void mpix_iggr8_to_xrgb32_5x3(const uint8_t src0[5], const uint8_t src1[5],
 					    const uint8_t src2[5], uint8_t dst[4])
 {
 	enum {
