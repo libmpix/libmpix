@@ -2,6 +2,13 @@
 
 Changelog of breaking changes across versions.
 
+## `v1.2.0`
+
+* Introduce a new memory allocation feature to allow user to select where buffers will be
+  allocated from by setting `img->mem_source` to one of the value from the enum (which might
+  be an user-define value if above `MPIX_MEM_SOURCE_CUSTOM0`). Then, this value will be passed
+  to the `mpix_port_alloc()` which can then decide on how to handle it.
+
 ## `v1.1.0`
 
 * Rename `MPIX_CID_COLOR_MATRIX` into `MPIX_CID_COLOR_MATRIX_0` and `_1`, `_2`, `_3`... `_8`.
