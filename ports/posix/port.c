@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include <mpix/port.h>
+#include <mpix/stats.h>
 
 uint32_t mpix_port_get_uptime_us(void)
 {

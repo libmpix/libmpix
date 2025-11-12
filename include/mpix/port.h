@@ -52,5 +52,4 @@ void mpix_port_free(void *mem, enum mpix_mem_source mem_source);
  * @param fmt A printf format string followed by arguments to be printed.
  */
 void mpix_port_printf(const char *fmt, ...);
-
 #endif /** @} */

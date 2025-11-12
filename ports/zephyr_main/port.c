@@ -8,6 +8,7 @@
 #include <zephyr/drivers/video-controls.h>
 
 #include <mpix/port.h>
+#include <mpix/stats.h>
 
 K_HEAP_DEFINE(mpix_heap, CONFIG_MPIX_HEAP_SIZE);
 
