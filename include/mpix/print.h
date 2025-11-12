@@ -74,7 +74,7 @@ void mpix_print_y_hist(const uint16_t *y8hist, size_t size, uint16_t height);
 void mpix_print_pipeline(struct mpix_base_op *op);
 
 /**
- * @brief Print details about a signle operation
+ * @brief Print details about a single operation
  * @param op Operation to print
  */
 void mpix_print_op(struct mpix_base_op *op);
@@ -92,5 +92,4 @@ void mpix_print_stats(struct mpix_stats *stats);
  * @param ctrls Array of control to print
  */
 void mpix_print_ctrls(int32_t *ctrls[]);
-
 #endif /** @} */
