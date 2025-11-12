@@ -118,7 +118,7 @@ void mpix_print_buf(const uint8_t *src, size_t size, const struct mpix_format *f
 
 	for (size_t h = 0; h + 2 <= fmt->height && curr_size < size; h += 2) {
 		const uint8_t *top = &src[(h + 0) * pitch];
-		const uint8_t *bot = &src[(h + 1) * pitch];;
+		const uint8_t *bot = &src[(h + 1) * pitch];
 		size_t next_size = MIN(size, (h + 2) * pitch);
 		size_t this_width = (next_size - curr_size) * BITS_PER_BYTE / bitspp / 2;
 
