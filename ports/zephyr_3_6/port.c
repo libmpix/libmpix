@@ -10,10 +10,18 @@
 #include <mpix/port.h>
 #include <mpix/config.h>
 
+#ifdef CONFIG_MPIX_STATS
+#include <mpix/stats.h>
+#endif
+
 K_HEAP_DEFINE(mpix_heap, CONFIG_MPIX_HEAP_SIZE);
 
 void *mpix_port_alloc(size_t size, enum mpix_mem_source mem_source)
 {
+#ifdef CONFIG_MPIX_STATS
+	update_memory_stats(size);
+#endif
+
 	(void)mem_source;
 	return k_heap_alloc(&mpix_heap, size, K_NO_WAIT);
 }

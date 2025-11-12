@@ -14,6 +14,12 @@ config MPIX_HEAP_SIZE
 	  line width are allocated. This configures how much memory to use for it.
 	  The default is enough for a few conversion for small frames.
 
+config MPIX_STATS
+	bool "Enable MPIX stats support"
+	default n
+	help
+	  Enable this option to include stats support for the MPIX module.
+	
 module = MPIX
 module-str = pixel
 source "subsys/logging/Kconfig.template.log_config"

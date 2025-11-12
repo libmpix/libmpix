@@ -86,6 +86,10 @@ int mpix_pipeline_run_once(struct mpix_base_op *op)
 	/* Start the counter of the next operation */
 	op->start_time_us = mpix_port_get_uptime_us();
 
+#ifdef CONFIG_MPIX_STATS
+	mpix_allocated = 0;
+#endif
+
 	switch (op->type) {
 #define CASE_MPIX_OP_RUN(X, x) \
 	case MPIX_OP_##X: \

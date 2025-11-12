@@ -15,6 +15,9 @@
 #include <mpix/ring.h>
 #include <mpix/types.h>
 #include <mpix/pipeline.h>
+#ifdef CONFIG_MPIX_STATS
+#include <mpix/stats.h>
+#endif
 
 /**
  * @brief Register an operation globally in the library.
@@ -154,6 +157,11 @@ static inline int mpix_op_output_done(struct mpix_base_op *op)
 
 	/* Start the counter again when resuming to his element */
 	op->start_time_us = mpix_port_get_uptime_us();
+
+#ifdef CONFIG_MPIX_STATS
+	op->mem_allocated = mpix_allocated;
+	mpix_allocated = 0;
+#endif
 
 	return err;
 }
