@@ -37,7 +37,8 @@ int simple_isp_demo(uint8_t *buf, size_t size, const struct mpix_format *fmt)
 	CHECK(mpix_image_ctrl_value(&img, MPIX_CID_RED_BALANCE,  1.3 * (1 << 10)));
 	CHECK(mpix_image_ctrl_value(&img, MPIX_CID_BLUE_BALANCE, 1.7 * (1 << 10)));
 	CHECK(mpix_image_ctrl_value(&img, MPIX_CID_GAMMA_LEVEL,  0.7 * (1 << 10)));
-	CHECK(mpix_image_ctrl_array(&img, MPIX_CID_COLOR_MATRIX, color_matrix_q10));
+	CHECK(mpix_image_ctrl_array(&img, MPIX_CID_COLOR_MATRIX_0, color_matrix_q10,
+				    ARRAY_SIZE(color_matrix_q10)));
 	CHECK(mpix_image_ctrl_value(&img, MPIX_CID_JPEG_QUALITY, MPIX_JPEG_QUALITY_DEFAULT));
 
 	/* Process the image and write it to standard output */
