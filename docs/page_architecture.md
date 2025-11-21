@@ -7,7 +7,7 @@ SIMD brings image processing abilities to low power microcontrollers
 [#3](https://bitbanksoftware.blogspot.com/2024/01/surprise-esp32-s3-has-few-simd.html).
 
 **libmpix** mixes SIMD instructions, hardware accelerators and software to process video data as
-efficiently as a chip permits, with RAM down to a few hundread kilobytes.
+efficiently as a chip permits, with RAM down to a few hundred kilobytes.
 
 ## Original idea
 
@@ -16,7 +16,7 @@ which goes 3 times larger once converted to RGB. For instance in VGA (640x480) r
 `640 * 480 * 1 (raw) + 640 * 480 * 3 (rgb) = 1 228 800` bytes, which is more than what most
 microcontrollers have.
 
-By processing the image line line by line, the large intermediate buffers are eliminated:
+By processing the image line by line, the large intermediate buffers are eliminated:
 
 ```
 --1-line--> correct_white_balance() --2-lines-RAW--> debayer_2x2() --8-lines-RGB--> jpeg_compress()
