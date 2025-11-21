@@ -9,6 +9,10 @@
 
 #include <mpix/port.h>
 
+#ifdef CONFIG_MPIX_STATS
+#include <mpix/stats.h>
+#endif
+
 /* Simple heap management for embedded systems */
 #ifndef MPIX_HEAP_SIZE
 #define MPIX_HEAP_SIZE (64 * 1024) // 64KB heap for testing
@@ -19,6 +23,9 @@ static size_t heap_offset = 0;
 
 void *mpix_port_alloc(size_t size, enum mpix_mem_source mem_source)
 {
+#ifdef CONFIG_MPIX_STATS
+	update_memory_stats(size);
+#endif
     (void)mem_source;
     // Align size to 8-byte boundary
     size = (size + 7) & ~7;

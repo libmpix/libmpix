@@ -12,6 +12,13 @@
 /* Arbitrary value estimated good enough for most cases */
 #define MPIX_STATS_DEFAULT_NVALS 1000
 
+#ifdef CONFIG_MPIX_STATS
+uint32_t mpix_allocated = 0;
+void update_memory_stats(size_t size) {
+	mpix_allocated += size;
+}
+#endif
+
 void mpix_stats_from_buf(struct mpix_stats *stats, const uint8_t *buf, struct mpix_format *fmt)
 {
 	uint32_t rgb_sum[3] = {0};

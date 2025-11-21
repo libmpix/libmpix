@@ -151,6 +151,10 @@ struct mpix_base_op {
 	uint32_t start_time_us;
 	/** Total time spent working in this op through the operation in CPU cycles */
 	uint32_t total_time_us;
+#ifdef CONFIG_MPIX_STATS
+	/** Memory allocated. */
+	uint32_t mem_allocated;
+#endif
 };
 
 /**

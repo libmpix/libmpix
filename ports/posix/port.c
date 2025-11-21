@@ -7,6 +7,10 @@
 
 #include <mpix/port.h>
 
+#ifdef CONFIG_MPIX_STATS
+#include <mpix/stats.h>
+#endif
+
 uint32_t mpix_port_get_uptime_us(void)
 {
 	struct timespec ts;
@@ -17,6 +21,10 @@ uint32_t mpix_port_get_uptime_us(void)
 
 void *mpix_port_alloc(size_t size, enum mpix_mem_source mem_source)
 {
+#ifdef CONFIG_MPIX_STATS
+	update_memory_stats(size);
+#endif
+
 	(void)mem_source;
 	return malloc(size);
 }

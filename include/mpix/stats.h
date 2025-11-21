@@ -12,6 +12,12 @@
 
 #include <mpix/types.h>
 
+#ifdef CONFIG_MPIX_STATS
+extern uint32_t mpix_allocated;
+void update_memory_stats(size_t size);
+#endif
+
+
 /**
  * @brief Collect red, green, blue channel averages of all pixels in an RGB24 frame.
  *
