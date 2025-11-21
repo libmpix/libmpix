@@ -25,7 +25,7 @@ Then choose the type of resize operation you wish to use:
 Then apply the resize operation using the selected strategy:
 
 ```c
-mpix_image_resize(&img, MPIX_RESIZE_SUBSAMPLING);
+mpix_image_resize_subsample(&img, 400, 400);
 ```
 
 See @ref supported_operations for the list of all supported resize types for each format.

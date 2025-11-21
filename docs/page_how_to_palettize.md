@@ -44,7 +44,7 @@ mpix_image_palette_encode(&img, palette);
 For getting RGB data back, it is possible to run the opposite operation with the same palette:
 
 ```c
-mpix_image_palette_decode(&img, palette);
+mpix_image_palette_decode(&img);
 ```
 
 See @ref supported_operations for the list of all palettization format.

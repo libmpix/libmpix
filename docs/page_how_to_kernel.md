@@ -34,5 +34,5 @@ Then, select the type of kernel operation you wish to perform on the image:
 Then call the operation on the image. For instance using the denoise kernel:
 
 ```c
-mpix_image_kernel_convolve_3x3(&img, MPIX_KERNEL_GAUSSIAN_BLUR);
+mpix_image_denoise(&img, 2);
 ```
