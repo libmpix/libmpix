@@ -49,7 +49,7 @@ struct mpix_operation {
 
 ## Define the adder function
 
-This function will be called whenever one more input line is available and can be processed.
+This function will be called in order to add an operation to a pipeline.
 
 ```c
 int mpix_add_<custom>(struct mpix_image *img, const int32_t *params)

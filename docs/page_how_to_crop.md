@@ -1,4 +1,4 @@
-# Crop Operation
+# How to crop images
 
 The crop operation allows you to extract a rectangular region from an image.
 
