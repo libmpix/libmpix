@@ -15,6 +15,7 @@
 #include <mpix/ring.h>
 #include <mpix/types.h>
 #include <mpix/pipeline.h>
+#include <mpix/stats.h>
 
 /**
  * @brief Register an operation globally in the library.
