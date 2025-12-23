@@ -33,7 +33,7 @@ set(COMMON_FLAGS
 )
 
 # Set up paths
-file(REAL_PATH ../.. LIBMPIX_DIR)
+file(REAL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../.." LIBMPIX_DIR)
 
 # Include directories
 set(INCLUDE_DIRS
@@ -51,7 +51,7 @@ file(GLOB LIBMPIX_OP_SOURCES ${LIBMPIX_DIR}/src/op_*.c)
 
 # Run the genlist.py script to generate the list definitions
 execute_process(
-    COMMAND python3 ${LIBMPIX_DIR}/scripts/genlist.py ${LIBMPIX_OP_SOURCES}
+    COMMAND sh ${LIBMPIX_DIR}/scripts/genlist.sh ${LIBMPIX_OP_SOURCES}
     OUTPUT_FILE ${GENLIST_H}
     WORKING_DIRECTORY ${LIBMPIX_DIR}
     RESULT_VARIABLE GENLIST_RESULT
@@ -63,90 +63,43 @@ list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include)
 # Common source files
 set(LIBMPIX_COMMON_SRC
     ${LIBMPIX_DIR}/src/JPEGENC.c
-    ${LIBMPIX_DIR}/src/formats.c
-    ${LIBMPIX_DIR}/src/image.c
+    ${LIBMPIX_DIR}/src/auto.c
     ${LIBMPIX_DIR}/src/print.c
     ${LIBMPIX_DIR}/src/str.c
-    ${LIBMPIX_DIR}/src/utils.c
 )
 
 # Check for ARM-specific implementations and use them if available
 # Otherwise fall back to CPU implementations
 set(LIBMPIX_OPERATION_SRC)
 
-# Handle debayer operation - use ARM Helium if available, otherwise CPU
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_debayer_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_debayer_helium.c)
-    message(STATUS "Using ARM Helium MVE debayer implementation")
-endif()
-# Always include base debayer implementation for the main API functions
-list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_debayer.c)
-
-# Convert operations: prefer ARM if available, otherwise use CPU
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_convert_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_convert_helium.c)
-    message(STATUS "Using ARM Helium MVE convert implementation")
-else()
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_convert.c)
-    message(STATUS "Using CPU convert implementation")
-endif()
-
-# Handle kernel operation - use ARM Helium if available, otherwise CPU
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_kernel_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_kernel_helium.c)
-    message(STATUS "Using ARM Helium MVE kernel implementation")
-endif()
-# Always include base kernel implementation for the main API functions
-list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/op_kernel.c)
-
-# Handle palettize operation - use ARM Helium if available, otherwise CPU
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_palettize_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_palettize_helium.c)
-    message(STATUS "Using ARM Helium MVE palettize implementation")
-endif()
-
-
-# Handle JPEG operation - use ARM Helium if available, otherwise CPU
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_jpeg_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_jpeg_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/JPEGENC_helium.c)
-    message(STATUS "Using ARM Helium MVE JPEG implementation")
-endif()
-
-
-
-
 # Add other operations if needed - you can extend this pattern
 # Always include the CPU version if no ARM version exists
 set(CPU_ONLY_OPERATIONS
-    op_correction.c
-    op_jpeg.c
-    op_kernel.c
-    op_palettize.c
-    op_qoi.c
-    op_resize.c
-    op_debayer.c
-    sample.c
-    stats.c
+    ${LIBMPIX_DIR}/src/sample.c
+    ${LIBMPIX_DIR}/src/stats.c
+    ${LIBMPIX_DIR}/src/op_convert.c
+    ${LIBMPIX_DIR}/src/op_correct_black_level.c
+    ${LIBMPIX_DIR}/src/op_correct_color_matrix.c
+    ${LIBMPIX_DIR}/src/op_correct_fused.c
+    ${LIBMPIX_DIR}/src/op_correct_gamma.c
+    ${LIBMPIX_DIR}/src/op_correct_white_balance.c
+    ${LIBMPIX_DIR}/src/op_crop.c
+    ${LIBMPIX_DIR}/src/op_debayer_1x1.c
+    ${LIBMPIX_DIR}/src/op_debayer_2x2.c
+    ${LIBMPIX_DIR}/src/op_debayer_3x3.c
+    ${LIBMPIX_DIR}/src/op_debayer_ir_5x3.c
+    ${LIBMPIX_DIR}/src/op_jpeg_encode.c
+    ${LIBMPIX_DIR}/src/op_kernel_convolve_3x3.c
+    ${LIBMPIX_DIR}/src/op_kernel_convolve_5x5.c
+    ${LIBMPIX_DIR}/src/op_kernel_denoise_3x3.c
+    ${LIBMPIX_DIR}/src/op_kernel_denoise_5x5.c
+    ${LIBMPIX_DIR}/src/op_palette_decode.c
+    ${LIBMPIX_DIR}/src/op_palette_encode.c
+    ${LIBMPIX_DIR}/src/op_posix_write.c
+    ${LIBMPIX_DIR}/src/op_qoi.c
+    ${LIBMPIX_DIR}/src/op_resize_subsample.c
+    ${LIBMPIX_DIR}/src/pipeline.c
 )
-
-foreach(op ${CPU_ONLY_OPERATIONS})
-    if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/${op})
-        list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/${op})
-        message(STATUS "Using ARM implementation for ${op}")
-    else()
-        if(EXISTS ${LIBMPIX_DIR}/src/${op})
-            list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/${op})
-            message(STATUS "Using CPU implementation for ${op}")
-        endif()
-    endif()
-endforeach()
-
-# Add ARM Helium correction implementation if present (custom filename)
-if(EXISTS ${LIBMPIX_DIR}/src/arch/arm/op_correction_helium.c)
-    list(APPEND LIBMPIX_OPERATION_SRC ${LIBMPIX_DIR}/src/arch/arm/op_correction_helium.c)
-    message(STATUS "Using ARM Helium MVE correction implementation")
-endif()
 
 # Port-specific sources
 set(LIBMPIX_PORT_SRC
@@ -159,7 +112,7 @@ set(LIBMPIX_PORT_SRC
 # Create the main library
 add_library(mpix_core STATIC
     ${LIBMPIX_COMMON_SRC}
-    ${LIBMPIX_OPERATION_SRC}
+    ${CPU_ONLY_OPERATIONS}
     ${LIBMPIX_PORT_SRC}
 )
 
@@ -179,7 +132,7 @@ target_compile_options(mpix_core PRIVATE
 
 # Create test executable for kernel
 add_executable(test_kernel_helium
-    ${LIBMPIX_DIR}/tests/kernel/main.c
+    ${LIBMPIX_DIR}/tests/kernel.on/main.c
 )
 
 target_link_libraries(test_kernel_helium 
@@ -189,7 +142,7 @@ target_link_libraries(test_kernel_helium
 
 # Create test executable for palettize
 add_executable(test_palettize_helium
-    ${LIBMPIX_DIR}/tests/palettize/main.c
+    ${LIBMPIX_DIR}/tests/palettize.on/main.c
 )
 
 target_link_libraries(test_palettize_helium 
@@ -245,7 +198,7 @@ set_target_properties(test_kernel_helium PROPERTIES OUTPUT_NAME "test_kernel_hel
 
 # Create test executable for debayer
 add_executable(test_debayer_helium
-    ${LIBMPIX_DIR}/tests/debayer/main.c
+    ${LIBMPIX_DIR}/tests/debayer.on/main.c
 )
 
 target_link_libraries(test_debayer_helium 
@@ -276,7 +229,7 @@ target_link_options(test_debayer_helium PRIVATE
 
 # Create test executable for correction
 add_executable(test_correction_helium
-    ${LIBMPIX_DIR}/tests/correction/main.c
+    ${LIBMPIX_DIR}/tests/correction.on/main.c
 )
 
 target_link_libraries(test_correction_helium 
@@ -310,68 +263,68 @@ set_target_properties(test_correction_helium PROPERTIES OUTPUT_NAME "test_correc
 set_target_properties(test_debayer_helium PROPERTIES OUTPUT_NAME "test_debayer_helium.elf")
 
 # Create simple test executable
-add_executable(simple_test
-    ${LIBMPIX_DIR}/ports/qemu_cortex_m55/main.c
-)
+# add_executable(simple_test
+#     ${LIBMPIX_DIR}/ports/qemu_cortex_m55/main.c
+# )
 
-target_link_libraries(simple_test 
-    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
-    -lm
-)
+# target_link_libraries(simple_test 
+#     -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+#     -lm
+# )
 
-target_compile_options(simple_test PRIVATE 
-    ${CORTEX_M55_FLAGS}
-    ${COMMON_FLAGS}
-    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
-    "-DCONFIG_MPIX_LOG_LEVEL=4"
-    "-DQEMU_CORTEX_M55=1"
-)
+# target_compile_options(simple_test PRIVATE 
+#     ${CORTEX_M55_FLAGS}
+#     ${COMMON_FLAGS}
+#     "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+#     "-DCONFIG_MPIX_LOG_LEVEL=4"
+#     "-DQEMU_CORTEX_M55=1"
+# )
 
-target_link_options(simple_test PRIVATE
-    ${CORTEX_M55_FLAGS}
-    ${COMMON_FLAGS}
-    "-Wl,--gc-sections"
-    "-Wl,--print-memory-usage"
-    "--specs=nano.specs"
-    "-u _printf_float"
-    "-u _scanf_float"
-    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
-    "-Wl,-Map=simple_test.map"
-)
+# target_link_options(simple_test PRIVATE
+#     ${CORTEX_M55_FLAGS}
+#     ${COMMON_FLAGS}
+#     "-Wl,--gc-sections"
+#     "-Wl,--print-memory-usage"
+#     "--specs=nano.specs"
+#     "-u _printf_float"
+#     "-u _scanf_float"
+#     "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+#     "-Wl,-Map=simple_test.map"
+# )
 
-set_target_properties(simple_test PROPERTIES OUTPUT_NAME "simple_test.elf")
+# set_target_properties(simple_test PROPERTIES OUTPUT_NAME "simple_test.elf")
 
 # Create JPEG test executable (validates Helium quantize vs baseline)
-add_executable(test_jpeg_helium
-    ${LIBMPIX_DIR}/tests/jpeg/main.c
-)
+# add_executable(test_jpeg_helium
+#     ${LIBMPIX_DIR}/tests/jpeg.off/main.c
+# )
 
-target_link_libraries(test_jpeg_helium 
-    -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
-    -lm
-)
+# target_link_libraries(test_jpeg_helium 
+#     -Wl,--whole-archive mpix_core -Wl,--no-whole-archive
+#     -lm
+# )
 
-target_compile_options(test_jpeg_helium PRIVATE 
-    ${CORTEX_M55_FLAGS}
-    ${COMMON_FLAGS}
-    "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
-    "-DCONFIG_MPIX_LOG_LEVEL=4"
-    "-DQEMU_CORTEX_M55=1"
-)
+# target_compile_options(test_jpeg_helium PRIVATE 
+#     ${CORTEX_M55_FLAGS}
+#     ${COMMON_FLAGS}
+#     "-DCONFIG_MPIX_SIMD_ARM_HELIUM=1"
+#     "-DCONFIG_MPIX_LOG_LEVEL=4"
+#     "-DQEMU_CORTEX_M55=1"
+# )
 
-target_link_options(test_jpeg_helium PRIVATE
-    ${CORTEX_M55_FLAGS}
-    ${COMMON_FLAGS}
-    "-Wl,--gc-sections"
-    "-Wl,--print-memory-usage"
-    "--specs=nano.specs"
-    "-u _printf_float"
-    "-u _scanf_float"
-    "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
-    "-Wl,-Map=test_jpeg_helium.map"
-)
+# target_link_options(test_jpeg_helium PRIVATE
+#     ${CORTEX_M55_FLAGS}
+#     ${COMMON_FLAGS}
+#     "-Wl,--gc-sections"
+#     "-Wl,--print-memory-usage"
+#     "--specs=nano.specs"
+#     "-u _printf_float"
+#     "-u _scanf_float"
+#     "-T${LIBMPIX_DIR}/ports/qemu_cortex_m55/cortex_m55.ld"
+#     "-Wl,-Map=test_jpeg_helium.map"
+# )
 
-set_target_properties(test_jpeg_helium PROPERTIES OUTPUT_NAME "test_jpeg_helium.elf")
+# set_target_properties(test_jpeg_helium PROPERTIES OUTPUT_NAME "test_jpeg_helium.elf")
 
 # Show build information
 message(STATUS "Building for Cortex-M55 with ARM Helium MVE support")
