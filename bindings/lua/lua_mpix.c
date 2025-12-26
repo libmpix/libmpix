@@ -10,6 +10,10 @@
 #include <mpix/operation.h>
 #include <mpix/print.h>
 
+/* Local parameters */
+#define LUA_MPIX_PALETTE_NUM_SAMPLES 1024
+#define LUA_MPIX_PALETTE_NUM_CYCLES 10
+
 /* Ping-pong buffers for the pipeline */
 static int32_t lua_mpix_pipeline_a[LUA_MPIX_PIPELINE_SIZE];
 static int32_t lua_mpix_pipeline_b[LUA_MPIX_PIPELINE_SIZE];
@@ -268,7 +272,7 @@ static int lua_mpix_palette_hooks(struct mpix_image *img, struct mpix_palette *p
 	/* Turn the color palette into an image to apply the correction on it */
 	mpix_image_from_palette(&palette_img, palette);
 
-	/* Apply the color corretction to the palette */
+	/* Apply the color correction to the palette */
 	for (struct mpix_base_op *op = img->first_op; op != NULL; op = op->next) {
 		switch (op->type) {
 		case MPIX_OP_CORRECT_BLACK_LEVEL:
@@ -276,7 +280,7 @@ static int lua_mpix_palette_hooks(struct mpix_image *img, struct mpix_palette *p
 		case MPIX_OP_CORRECT_GAMMA:
 		case MPIX_OP_CORRECT_WHITE_BALANCE:
 			err = mpix_pipeline_add(&palette_img, op->type, NULL, 0);
-			if (err) return err;
+			if (err) goto err;
 			break;
 		default:
 			break;
@@ -290,16 +294,24 @@ static int lua_mpix_palette_hooks(struct mpix_image *img, struct mpix_palette *p
 		}
 	}
 
+	/* Optimize the palette colors according to the image being processed */
+	for (int i = 0; i < LUA_MPIX_PALETTE_NUM_CYCLES; i++) {
+		err = mpix_image_optimize_palette(img, palette, LUA_MPIX_PALETTE_NUM_SAMPLES);
+		if (err) goto err;
+	}
+
 	/* Apply the image correction to the color palette to get accurate colors */
 	err = mpix_image_to_palette(&palette_img, palette);
-	mpix_image_free(&palette_img);
-	if (err) return err;
+	if (err) goto err;
 
 	/* Apply it to all palette operations */
 	err = mpix_pipeline_set_palette(img->first_op, palette);
-	if (err) return err;
+	if (err) goto err;
 
-	return 0;
+	err = 0;
+err:
+	mpix_image_free(&palette_img);
+	return err;
 }
 
 int lua_mpix_hooks(struct mpix_image *img, struct mpix_palette *palette)
