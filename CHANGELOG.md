@@ -2,6 +2,10 @@
 
 Changelog of breaking changes across versions.
 
+## `v1.2.1`
+
+* Fix the lua integration of palette encode/decode operations
+
 ## `v1.2.0`
 
 * Introduce a new memory allocation feature to allow user to select where buffers will be
