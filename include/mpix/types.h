@@ -188,7 +188,7 @@ struct mpix_str {
 
 /** Color palette for encoding/decoding an RGB24 image from/to an indexed color image format */
 struct mpix_palette {
-	/** Color value where the position in the array (in pixel number) is the color inxdex. */
+	/** Color value where the position in the array (in pixel number) is the color index. */
 	uint8_t colors_rgb24[3 << 8];
 	/** Format of the indexed colors, defining the palette size. */
 	uint32_t fourcc;

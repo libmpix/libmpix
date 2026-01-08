@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include <mpix/op_kernel.h>
 
 #include "arm_mve.h"
 
