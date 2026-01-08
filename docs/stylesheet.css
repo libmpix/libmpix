@@ -1,64 +1,140 @@
+/* =========================
+   GLOBAL THEME VARIABLES
+   ========================= */
 :root {
-	--nav-text-hover-color: black;
+	--brand-color: #2f4f8f;
+	--brand-color-soft: rgba(47, 79, 143, 0.10);
+
+	--text-main: #1f2328;
+	--text-muted: #57606a;
+
+	--nav-text-hover-color: var(--brand-color);
 	--header-gradient-image: none;
-	--memdef-border-color: none;
-	--memdef-proto-background-color: none;
+
+	--memdef-border-color: transparent;
+	--memdef-proto-background-color: transparent;
 	--memdef-title-gradient-image: none;
-	--memdef-title-background-color: none;
+	--memdef-title-background-color: transparent;
 	--memdef-proto-text-shadow: none;
-	--memdef-doc-background-color: none;
+	--memdef-doc-background-color: transparent;
 }
 
+/* =========================
+   BASE LAYOUT & TYPOGRAPHY
+   ========================= */
 body {
 	max-width: 1000px;
 	margin: auto;
 	margin-bottom: 128px;
 	padding-left: 5%;
 	padding-right: 5%;
-}
 
-body, table, div, p, dl, #projectbrief, .sm-dox a, .sm-dox a:hover  {
 	font-size: 16px;
+	line-height: 1.7;
+	color: var(--text-main);
+	background: #ffffff;
 }
 
+body, table, div, p, dl, #projectbrief, .sm-dox a {
+	font-size: 16px;
+	
+}
+
+
+
+p {
+	margin: 0.75em 0;
+}
+
+/* =========================
+   HEADER / LOGO
+   ========================= */
 #titlearea {
-	border: none;
-	padding-top: 32px;
+    border: none;
+    padding-top: 32px;
+    margin-bottom: 24px;
+    margin-top: 23px;
+    padding: 10px 20px;
+    background: #1f3154;
+    border-radius: 9px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 8px 7px 11px #101111;
+}
+@media (prefers-color-scheme: light) {
+    #titlearea {
+        background: transparent !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        border: none !important;
+    }
+}
+
+#projectname {
+	font-weight: 600;
 }
 
 #projectbrief {
 	padding-left: 16px;
+	color: var(--text-muted);
 }
 
-#projectname, #projectbrief {
+#projectname,
+#projectbrief {
 	display: inline-block;
 }
 
 #projectlogo img {
 	width: 512px;
 	max-width: 100%;
+	height: auto;
 }
 
+/* =========================
+   SEARCH
+   ========================= */
 #MSearchBox {
+	border-radius: 6px;
+	border: 1px solid #2f4f8f;
 	box-shadow: none;
-	border-radius: 0px;
+	padding: 5px 15px;
+	background-color: transparent;
 }
 
+/* =========================
+   CONTENT AREA
+   ========================= */
 #doc-content {
 	height: auto !important;
 	padding-bottom: 64px;
 }
 
-div.header, div.memitem {
-	border-top: solid 1px var(--group-header-separator-color);
-	border-bottom: solid 1px var(--group-header-separator-color);
+div.header,
+div.memitem {
+	border-top: 1px solid var(--group-header-separator-color);
+	border-bottom: 1px solid var(--group-header-separator-color);
 }
 
-div.memitem, div.contents, h1, h2, h3, h4, h5, h6 {
-	margin-right: 0px;
-	margin-left: 0px;
-	padding-left: 0px;
-	padding-right: 0px;
+/* =========================
+   HEADINGS
+   ========================= */
+h1, h2, h3, h4, h5, h6 {
+	color: var(--brand-color);
+	font-weight: 600;
+	margin-top: 1.6em;
+	margin-bottom: 0.6em;
+}
+
+/* =========================
+   MEMBER BLOCKS
+   ========================= */
+div.memitem {
+	margin: 16px 0;
+	padding: 14px;
+	background: var(--brand-color-soft);
+	border-radius: 8px;
 }
 
 div.memitem > * {
@@ -66,48 +142,149 @@ div.memitem > * {
 	padding-right: 16px;
 }
 
-.sm-dox {
-	background: none;
-	padding-left: 0px;
-	padding-right: 0px;
-}
-
-.sm-dox a, .sm-dox a:focus, .sm-dox a:active, .sm-dox a:hover, .sm-dox a.highlighted {
-	background: none;
-}
-
-.sm-dox a, .sm-dox a:focus, .sm-dox a:hover, .sm-dox a:active {
-	text-shadow: none;
-	outline: none;
-}
-
-div.fragment {
-	padding: 16px;
-}
-
-.memdoc, .memproto {
-	box-shadow: none;
-	background-image: none;
-	border: none;
-}
-
-.memitem {
-	padding: 8px;
-	background: rgba(100, 130, 180, 0.04);
-
-}
-
 .memtitle {
 	background: none;
 	border: none;
+	font-weight: 600;
+	color: var(--brand-color);
 }
 
-.permalink a, .permalink a:visited {
-	color: var(--index-separator-color);
+.memdoc,
+.memproto {
+	box-shadow: none;
+	background: none;
+	border: none;
+}
+ul {
+    overflow: visible;
+    line-height: 30px;
+}
+#textblockHead{
+        font-family: var(--font-family-normal);
+    line-height: 28px;
+    font-size: 19px;
+    font-weight: bold;
+    margin: 10px 2px;
+}
+#textblockPara {
+    line-height: 30px;
+    padding: 1px 4px;
+    font-size: 17px;
+}
+/* =========================
+   CODE BLOCKS
+   ========================= */
+div.fragment {
+	padding: 16px;
+	border-radius: 8px;
+	background: #f6f8fa;
+	border: 1px solid #d8dee4;
+	overflow-x: auto;
+	font-size: 14px;
+	line-height: 1.6;
 }
 
+/* =========================
+   NAVIGATION (SM-DOX)
+   ========================= */
+.sm-dox {
+	background: none;
+	padding-left: 0;
+	padding-right: 0;
+	margin: 10px auto;
+}
+
+.sm-dox a,
+.sm-dox a:focus,
+.sm-dox a:active,
+.sm-dox a:hover,
+.sm-dox a.highlighted {
+	background: none;
+	color: var(--brand-color);
+	text-shadow: none;
+	outline: none;
+	 transform: none !important;
+	 font-size: 16px !important;
+	
+
+}
+.sm-dox li,
+.sm-dox li:hover {
+    transform: none !important;
+}
+
+.sm-dox a:hover {
+	 color: #032e7c;
+	  	   transition: all cubic-bezier(0.19, 1, 0.22, 1) 1s;
+
+
+}
+
+/* =========================
+   LINKS
+   ========================= */
+a {
+	color: var(--brand-color);
+	text-decoration: none;
+}
+
+
+
+a:hover {
+	color: #032e7c;
+   transition:  cubic-bezier(0.19, 1, 0.22, 1) 1s;
+   	text-decoration: none;
+
+
+}
+
+.permalink a,
+.permalink a:visited {
+	color: #8c959f;
+}
+
+/* =========================
+   NOTES
+   ========================= */
 dl.note {
 	border: none;
-	margin: inherit;
-	/* background-color: ; */
+	margin: 1em 0;
+	color: var(--text-muted);
+}
+
+/* =========================
+   DARK MODE
+   ========================= */
+@media (prefers-color-scheme: dark) {
+
+	body {
+		background: #0d1117;
+		color: #c9d1d9;
+	}
+
+	p {
+		color: #c9d1d9;
+	}
+
+	h1, h2, h3, h4, h5, h6 {
+		color: #9db4e4;
+	}
+
+	div.fragment {
+		background: #161b22;
+		border-color: #30363d;
+	}
+
+	div.memitem {
+		background: rgba(100, 130, 180, 0.14);
+	}
+
+	a {
+		color: #9db4e4;
+	}
+
+	/* LOGO VISIBILITY FIX */
+	#projectlogo img {
+		filter: brightness(1.15) contrast(1.05);
+	}
 }
