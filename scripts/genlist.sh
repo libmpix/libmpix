@@ -3,7 +3,7 @@
 cd "$(dirname "$0")/.."
 
 echo "/* SPDX-License-Identifier: Apache-2.0 */"
-echo "/* Genreated with scripts/genlist.sh */"
+echo "/* Generated with scripts/genlist.sh */"
 
 c2op() {
     awk -F '[( ),]' '
