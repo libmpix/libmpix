@@ -28,7 +28,8 @@ body {
 	margin-bottom: 128px;
 	padding-left: 5%;
 	padding-right: 5%;
-
+padding-top: 10px;
+    padding-bottom: 80px;
 	font-size: 16px;
 	line-height: 1.7;
 	color: var(--text-main);
@@ -52,9 +53,10 @@ p {
 #titlearea {
     border: none;
     padding-top: 32px;
-    margin-bottom: 24px;
-    margin-top: 23px;
-    padding: 10px 20px;
+     margin-top: 40px;
+    margin-bottom: 40px;
+    padding-top: 24px;
+    padding-bottom: 24px;
     background: #1f3154;
     border-radius: 9px;
     text-align: center;
@@ -116,7 +118,13 @@ div.memitem {
 	border-top: 1px solid var(--group-header-separator-color);
 	border-bottom: 1px solid var(--group-header-separator-color);
 }
-
+address.footer {
+    text-align: right;
+    padding-right: 12px;
+    margin-top: 60px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+}
 /* =========================
    HEADINGS
    ========================= */
@@ -168,7 +176,7 @@ ul {
 }
 #textblockPara {
     line-height: 30px;
-    padding: 1px 4px;
+    padding: 7px 9px;
     font-size: 17px;
 }
 /* =========================
@@ -182,6 +190,10 @@ div.fragment {
 	overflow-x: auto;
 	font-size: 14px;
 	line-height: 1.6;
+}
+hr {
+    margin-top: 40px;
+    margin-bottom: 40px;
 }
 
 /* =========================
@@ -262,10 +274,45 @@ dl.note {
 		color: #c9d1d9;
 	}
 
+	#titlearea {
+    border: none;
+    padding-top: 32px;
+    margin-bottom: 24px;
+    margin-top: 23px;
+    padding: 10px 20px;
+    background: #1f3154;
+    border-radius: 9px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 8px 7px 11px #101111;
+	width: 100%;
+}
+
+#MSearchBox {
+    border-radius: 6px;
+    border: 1px solid #2f4f8f;
+    box-shadow: none;
+    padding: 2px 9px;
+    background-color: transparent;
+}
+
+.title {
+    font-weight: 400;
+    font-size: 14px;
+    font-family: var(--font-family-normal);
+    line-height: 28px;
+    font-size: 119%;
+    font-weight: bold;
+    margin: 10px 2px;
+}
+
 	p {
 		color: #c9d1d9;
 	}
 
+	
 	h1, h2, h3, h4, h5, h6 {
 		color: #9db4e4;
 	}
@@ -287,4 +334,63 @@ dl.note {
 	#projectlogo img {
 		filter: brightness(1.15) contrast(1.05);
 	}
+}
+/* =========================
+   RESPONSIVE DESIGN (MOBILE)
+   ========================= */
+
+@media (max-width: 425px) {
+    body {
+        /* Remove fixed width and use full width with padding */
+        max-width: 100%; 
+        padding-left: 15px;
+        padding-right: 15px;
+        margin-bottom: 64px; /* Less bottom margin on mobile */
+    }
+	
+    #titlearea {
+        flex-direction: column; /* Stack logo and text vertically */
+        padding: 20px 10px;
+        width: auto; /* Allow it to fill the screen width */
+    }
+
+    #projectlogo img {
+        width: 100%; /* Ensure logo doesn't overflow */
+        max-width: 300px; /* Cap size so it's not too huge on small screens */
+        margin-bottom: 15px;
+    }
+
+    #projectbrief {
+        padding-left: 0;
+        display: block; /* Move brief to its own line */
+        margin-top: 5px;
+        font-size: 14px;
+    }
+
+ .sm-dox li {
+        width: 100%;
+        /* text-align: center; */
+        padding: 3px 20px;
+    }
+
+
+    
+    div.memitem {
+        padding: 10px;
+        margin: 10px 0;
+    }
+
+    div.memitem > * {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    
+    div.fragment {
+        font-size: 12px;
+        padding: 10px;
+    }
+
+    h1 { font-size: 24px; }
+    h2 { font-size: 20px; }
 }
